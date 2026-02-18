@@ -3,8 +3,10 @@
     "aibolit-clinic": {
       "command": "python",
       "args": ["-m", "src.mcp_server"],
-      "cwd": ".",
-      "env": {}
+      "cwd": "C:\\Users\\evgde\\Cursor project\\aibolit-claude",
+      "env": {
+        "PYTHONPATH": "C:\\Users\\evgde\\Cursor project\\aibolit-claude"
+      }
     }
   }
 }

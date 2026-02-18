@@ -88,7 +88,22 @@ python -c "from src.mcp_server import app; print('Aibolit OK')"
 - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
 - **Linux**: `~/.config/Claude/claude_desktop_config.json`
 
-Добавьте в секцию `mcpServers`:
+#### Способ 1: Через `run.py` (рекомендуется, самый надёжный)
+
+```json
+{
+  "mcpServers": {
+    "aibolit-clinic": {
+      "command": "python",
+      "args": ["C:\\Users\\evgde\\Cursor project\\aibolit-claude\\run.py"]
+    }
+  }
+}
+```
+
+`run.py` автоматически настраивает пути — работает на любой ОС без дополнительных настроек.
+
+#### Способ 2: Через модуль с указанием cwd
 
 ```json
 {
@@ -96,15 +111,29 @@ python -c "from src.mcp_server import app; print('Aibolit OK')"
     "aibolit-clinic": {
       "command": "python",
       "args": ["-m", "src.mcp_server"],
-      "cwd": "/полный/путь/к/aibolit-claude"
+      "cwd": "C:\\Users\\evgde\\Cursor project\\aibolit-claude",
+      "env": {
+        "PYTHONPATH": "C:\\Users\\evgde\\Cursor project\\aibolit-claude"
+      }
     }
   }
 }
 ```
 
-> **Важно**: замените `/полный/путь/к/aibolit-claude` на реальный путь к папке проекта.
+> **Важно**: замените пути на реальный путь к папке проекта на вашем компьютере.
+> На macOS/Linux используйте обычные слэши: `/home/user/aibolit-claude`
 
-Перезапустите Claude Desktop. В интерфейсе чата появится иконка MCP-инструментов (молоток).
+#### После настройки
+
+Перезапустите Claude Desktop. В интерфейсе чата появится иконка MCP-инструментов (молоток 🔨). Нажмите на неё — вы увидите 31 инструмент клиники Aibolit.
+
+#### Возможные ошибки
+
+| Ошибка | Причина | Решение |
+|---|---|---|
+| `No module named 'src'` | Неправильный `cwd` или нет `PYTHONPATH` | Используйте **Способ 1** (`run.py`) |
+| `No module named 'mcp'` | Не установлены зависимости | `pip install mcp httpx pydantic` |
+| `Server disconnected` | Python не найден | Укажите полный путь: `"command": "C:\\Program Files\\Python311\\python.exe"` |
 
 ---
 
