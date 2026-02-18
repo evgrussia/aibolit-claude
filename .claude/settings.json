@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "aibolit-clinic": {
+      "command": "python",
+      "args": ["-m", "src.mcp_server"],
+      "cwd": "/home/user/aibolit-claude"
+    }
+  }
+}
