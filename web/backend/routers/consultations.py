@@ -34,7 +34,7 @@ async def start_consultation(
 ):
     from src.mcp_server import _handle_consultation
     from src.agents.specializations import get_specialization
-    from src.models.patient import load_patient
+    from src.utils.database import load_patient
 
     # Auto-fill patient_id from token if not provided
     patient_id = req.patient_id
