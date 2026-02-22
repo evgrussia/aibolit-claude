@@ -173,6 +173,18 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 CREATE INDEX IF NOT EXISTS idx_users_patient ON users(patient_id);
 
+CREATE TABLE IF NOT EXISTS documents (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    patient_id      TEXT NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
+    file_name       TEXT NOT NULL,
+    file_type       TEXT NOT NULL DEFAULT '',
+    file_size       INTEGER NOT NULL DEFAULT 0,
+    content         BLOB NOT NULL,
+    notes           TEXT NOT NULL DEFAULT '',
+    uploaded_at     TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_documents_patient ON documents(patient_id);
+
 CREATE TABLE IF NOT EXISTS schema_version (
     version     INTEGER PRIMARY KEY,
     applied_at  TEXT NOT NULL DEFAULT (datetime('now'))
@@ -865,3 +877,56 @@ def link_user_to_patient(user_id: int, patient_id: str) -> None:
             "UPDATE users SET patient_id = ? WHERE id = ?",
             (patient_id, user_id),
         )
+
+
+# ══════════════════════════════════════════════════════════════
+# Document storage
+# ══════════════════════════════════════════════════════════════
+
+def save_document(
+    patient_id: str,
+    file_name: str,
+    file_type: str,
+    file_size: int,
+    content: bytes,
+    notes: str = "",
+) -> int:
+    """Store an uploaded document. Returns document row ID."""
+    conn = get_connection()
+    with conn:
+        _check_patient_exists(conn, patient_id)
+        cursor = conn.execute(
+            """INSERT INTO documents (patient_id, file_name, file_type, file_size, content, notes)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (patient_id, file_name, file_type, file_size, content, notes),
+        )
+    return cursor.lastrowid
+
+
+def list_documents(patient_id: str) -> list[dict]:
+    """List documents for a patient (without BLOB content)."""
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT id, file_name, file_type, file_size, notes, uploaded_at
+           FROM documents WHERE patient_id = ? ORDER BY uploaded_at DESC""",
+        (patient_id,),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_document(doc_id: int) -> dict | None:
+    """Fetch a single document with its content."""
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT id, patient_id, file_name, file_type, file_size, content, notes, uploaded_at FROM documents WHERE id = ?",
+        (doc_id,),
+    ).fetchone()
+    return dict(row) if row else None
+
+
+def delete_document(doc_id: int) -> bool:
+    """Delete a document by ID. Returns True if deleted."""
+    conn = get_connection()
+    with conn:
+        cursor = conn.execute("DELETE FROM documents WHERE id = ?", (doc_id,))
+    return cursor.rowcount > 0

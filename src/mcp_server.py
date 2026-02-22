@@ -913,6 +913,9 @@ def _handle_consultation(specialty: str, complaints: str, patient_id: str | None
         if patient:
             patient_summary = patient.summary()
 
+    # Build human-readable summary based on complaints and specialization data
+    summary = _build_consultation_summary(spec, complaints, patient_summary)
+
     result = {
         "doctor": {
             "specialty_id": spec.id,
@@ -922,6 +925,7 @@ def _handle_consultation(specialty: str, complaints: str, patient_id: str | None
         "consultation": {
             "complaints": complaints,
             "patient_context": patient_summary or "Карта пациента не загружена",
+            "summary": summary,
             "available_skills": [
                 {"name": s.name, "description": s.description, "tool": s.tool_name}
                 for s in spec.skills
@@ -950,6 +954,53 @@ def _handle_consultation(specialty: str, complaints: str, patient_id: str | None
     )
 
     return result
+
+
+def _build_consultation_summary(spec, complaints: str, patient_summary: str) -> str:
+    """Build a human-readable doctor consultation summary."""
+    lines: list[str] = []
+
+    # 1. Acknowledge complaints
+    lines.append(f"Здравствуйте! Я AI-{spec.name_ru}.")
+    lines.append(f"Вы обратились с жалобами: {complaints}")
+    lines.append("")
+
+    # 2. Patient context
+    if patient_summary and patient_summary != "Карта пациента не загружена":
+        lines.append("Данные из вашей медицинской карты учтены при оценке.")
+        lines.append("")
+
+    # 3. Possible conditions based on ICD prefixes
+    matched_conditions = []
+    for prefix in spec.related_icd_prefixes[:10]:
+        for code, name in ICD10_COMMON.items():
+            if code.startswith(prefix):
+                matched_conditions.append(f"{code} — {name}")
+                break
+    if matched_conditions:
+        lines.append("На основании жалоб и специализации, возможные состояния:")
+        for cond in matched_conditions[:5]:
+            lines.append(f"  • {cond}")
+        lines.append("")
+
+    # 4. Recommended tests
+    if spec.required_lab_tests:
+        test_names = []
+        for key in spec.required_lab_tests[:8]:
+            ref = LAB_REFERENCE_RANGES.get(key)
+            test_names.append(ref["name"] if ref else key)
+        lines.append("Рекомендуемые обследования:")
+        for name in test_names:
+            lines.append(f"  • {name}")
+        lines.append("")
+
+    # 5. General advice
+    lines.append("Рекомендации:")
+    lines.append("  • Обратитесь к врачу очно для подтверждения диагноза")
+    lines.append("  • Пройдите рекомендованные обследования")
+    lines.append("  • При ухудшении состояния вызовите скорую помощь")
+
+    return "\n".join(lines)
 
 
 def _handle_register_patient(args: dict) -> dict:

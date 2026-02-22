@@ -1,32 +1,10 @@
-import { useState } from 'react';
-import { ChevronDown, ChevronUp, Stethoscope, BookOpen, FlaskConical, AlertTriangle } from 'lucide-react';
+import { Stethoscope, FlaskConical, BookOpen, AlertTriangle } from 'lucide-react';
 import Card from '../shared/Card';
 import Badge from '../shared/Badge';
 import type { ConsultationResult } from '../../types/patient';
 
 interface Props {
   result: ConsultationResult;
-}
-
-function Collapsible({ title, icon, children, defaultOpen = false }: {
-  title: string; icon: React.ReactNode; children: React.ReactNode; defaultOpen?: boolean;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <div className="border border-gray-100 rounded-lg overflow-hidden">
-      <button
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-      >
-        <span className="flex items-center gap-2">
-          <span className="text-medical-teal">{icon}</span>
-          {title}
-        </span>
-        {open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-      </button>
-      {open && <div className="px-4 pb-4 text-sm text-gray-600">{children}</div>}
-    </div>
-  );
 }
 
 export default function ConsultationResultCard({ result }: Props) {
@@ -45,60 +23,49 @@ export default function ConsultationResultCard({ result }: Props) {
         </div>
       </Card>
 
-      {/* Patient context */}
-      {result.consultation.patient_context !== 'Карта пациента не загружена' && (
-        <Collapsible title="Контекст пациента" icon={<BookOpen size={16} />}>
-          <pre className="whitespace-pre-wrap text-xs bg-gray-50 rounded-lg p-3 max-h-48 overflow-y-auto">
-            {result.consultation.patient_context}
-          </pre>
-        </Collapsible>
+      {/* Summary — main content */}
+      {result.consultation.summary && (
+        <Card>
+          <div className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">
+            {result.consultation.summary}
+          </div>
+        </Card>
       )}
 
       {/* Recommended tests */}
       {result.consultation.recommended_tests.length > 0 && (
-        <Collapsible title="Рекомендуемые обследования" icon={<FlaskConical size={16} />} defaultOpen>
+        <Card>
+          <div className="flex items-center gap-2 mb-3">
+            <FlaskConical size={16} className="text-medical-teal" />
+            <span className="text-sm font-medium text-gray-700">Рекомендуемые обследования</span>
+          </div>
           <div className="flex flex-wrap gap-2">
             {result.consultation.recommended_tests.map(test => (
               <Badge key={test} variant="info">{test}</Badge>
             ))}
           </div>
-        </Collapsible>
+        </Card>
       )}
 
-      {/* Available skills */}
-      {result.consultation.available_skills.length > 0 && (
-        <Collapsible title="Диагностические навыки" icon={<Stethoscope size={16} />}>
-          <div className="space-y-2">
-            {result.consultation.available_skills.map(skill => (
-              <div key={skill.name} className="flex items-start gap-2">
-                <span className="text-medical-teal mt-0.5 shrink-0">-</span>
-                <div>
-                  <span className="font-medium text-gray-700">{skill.name}</span>
-                  <span className="text-gray-400 ml-2">{skill.description}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Collapsible>
-      )}
-
-      {/* ICD prefixes */}
+      {/* ICD codes */}
       {result.consultation.relevant_icd_prefixes.length > 0 && (
-        <Collapsible title="Коды МКБ" icon={<BookOpen size={16} />}>
+        <Card>
+          <div className="flex items-center gap-2 mb-3">
+            <BookOpen size={16} className="text-medical-teal" />
+            <span className="text-sm font-medium text-gray-700">Коды МКБ</span>
+          </div>
           <div className="flex flex-wrap gap-2">
             {result.consultation.relevant_icd_prefixes.map(code => (
               <Badge key={code} variant="gray">{code}</Badge>
             ))}
           </div>
-        </Collapsible>
+        </Card>
       )}
 
-      {/* Instructions */}
-      <Card title="Порядок консультации">
-        <pre className="whitespace-pre-wrap text-sm text-gray-600 leading-relaxed">
-          {result.instructions}
-        </pre>
-      </Card>
+      {/* Instructions (small text) */}
+      <p className="text-xs text-gray-400 leading-relaxed whitespace-pre-line px-1">
+        {result.instructions}
+      </p>
 
       {/* Disclaimer */}
       <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">

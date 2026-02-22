@@ -1,5 +1,7 @@
 import api from './client';
 
+// ── Document generation ────────────────────────────────────
+
 export interface MedicalRecordRequest {
   patient_name: string; patient_age: number; gender: string;
   complaints: string; anamnesis: string; examination: string;
@@ -33,3 +35,44 @@ export const generatePrescription = (data: PrescriptionRequest) =>
 
 export const generateReferral = (data: ReferralRequest) =>
   api.post<{ document: string }>('/documents/referral', data).then(toDocResponse);
+
+// ── File upload / download ─────────────────────────────────
+
+export interface UploadedDocument {
+  id: number;
+  file_name: string;
+  file_type: string;
+  file_size: number;
+  notes: string;
+  uploaded_at: string;
+}
+
+export async function uploadDocument(file: File, notes?: string): Promise<{ id: number; file_name: string; file_size: number }> {
+  const formData = new FormData();
+  formData.append('file', file);
+  if (notes) formData.append('notes', notes);
+  const { data } = await api.post('/documents/upload', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 60000,
+  });
+  return data;
+}
+
+export async function listMyDocuments(): Promise<UploadedDocument[]> {
+  const { data } = await api.get('/documents/my');
+  return data;
+}
+
+export async function downloadDocument(id: number, fileName: string): Promise<void> {
+  const { data } = await api.get(`/documents/${id}/download`, { responseType: 'blob' });
+  const url = URL.createObjectURL(data);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export async function deleteDocument(id: number): Promise<void> {
+  await api.delete(`/documents/${id}`);
+}

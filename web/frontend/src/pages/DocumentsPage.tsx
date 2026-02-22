@@ -1,20 +1,23 @@
 import { useState } from 'react';
-import { FileText, ClipboardList, UserCheck } from 'lucide-react';
+import { FileText, ClipboardList, UserCheck, Upload } from 'lucide-react';
 import PrescriptionTab from '../components/documents/PrescriptionTab';
 import ReferralTab from '../components/documents/ReferralTab';
+import MyDocumentsTab from '../components/documents/MyDocumentsTab';
 
 const TABS = [
-  { id: 'prescription', label: 'Рецепт', icon: <ClipboardList size={16} /> },
-  { id: 'referral',     label: 'Направление', icon: <UserCheck size={16} /> },
+  { id: 'my-docs',      label: 'Мои документы', icon: <Upload size={16} /> },
+  { id: 'prescription', label: 'Рецепт',        icon: <ClipboardList size={16} /> },
+  { id: 'referral',     label: 'Направление',   icon: <UserCheck size={16} /> },
 ];
 
 const descriptions: Record<string, string> = {
+  'my-docs': 'Загрузка и хранение медицинских документов, анализов и снимков',
   prescription: 'Формирование листа назначений с перечнем препаратов и дозировок',
   referral: 'Оформление направления к специалисту с обоснованием',
 };
 
 export default function DocumentsPage() {
-  const [tab, setTab] = useState('prescription');
+  const [tab, setTab] = useState('my-docs');
 
   return (
     <div className="space-y-6">
@@ -37,6 +40,7 @@ export default function DocumentsPage() {
         ))}
       </div>
 
+      {tab === 'my-docs'      && <MyDocumentsTab />}
       {tab === 'prescription' && <PrescriptionTab />}
       {tab === 'referral'     && <ReferralTab />}
     </div>

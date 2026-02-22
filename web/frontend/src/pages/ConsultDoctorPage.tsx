@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { MessageSquare, ArrowLeft, Loader2 } from 'lucide-react';
 import { useSpecializations } from '../hooks/useSpecializations';
 import { useStartConsultation } from '../hooks/useConsultation';
-import { usePatients } from '../hooks/usePatients';
+import { useAuth } from '../contexts/AuthContext';
 import SpecialtyGrid from '../components/consult/SpecialtyGrid';
 import ConsultationResultCard from '../components/consult/ConsultationResultCard';
 import LoadingSpinner from '../components/shared/LoadingSpinner';
@@ -16,12 +16,11 @@ export default function ConsultDoctorPage() {
   const [step, setStep] = useState<Step>('specialty');
   const [selected, setSelected] = useState<Specialization | null>(null);
   const [complaints, setComplaints] = useState('');
-  const [patientId, setPatientId] = useState('');
   const [result, setResult] = useState<ConsultationResult | null>(null);
 
   const { data: specializations = [], isLoading, error, refetch } = useSpecializations();
-  const { data: patients = [] } = usePatients();
   const mutation = useStartConsultation();
+  const { patientId } = useAuth();
   const toast = useToast();
 
   const handleSelectSpecialty = (spec: Specialization) => {
@@ -103,23 +102,6 @@ export default function ConsultDoctorPage() {
           <div className="bg-medical-teal/5 border border-medical-teal/20 rounded-xl p-4">
             <div className="font-medium text-gray-800">{selected.name_ru}</div>
             <p className="text-sm text-gray-500 mt-1">{selected.description}</p>
-          </div>
-
-          <div>
-            <label htmlFor="patient-select" className="block text-sm font-medium text-gray-700 mb-1.5">
-              Пациент (необязательно)
-            </label>
-            <select
-              id="patient-select"
-              value={patientId}
-              onChange={e => setPatientId(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-medical-teal/30"
-            >
-              <option value="">Без привязки к пациенту</option>
-              {patients.map(p => (
-                <option key={p.id} value={p.id}>{p.name} (ID: {p.id})</option>
-              ))}
-            </select>
           </div>
 
           <div>

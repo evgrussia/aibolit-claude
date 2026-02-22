@@ -112,6 +112,7 @@ export interface ConsultationResult {
   consultation: {
     complaints: string;
     patient_context: string;
+    summary: string;
     available_skills: ConsultationSkill[];
     relevant_icd_prefixes: string[];
     recommended_tests: string[];
