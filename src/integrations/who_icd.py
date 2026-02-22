@@ -52,37 +52,3 @@ def _fallback_icd_search(query: str) -> list[dict]:
         if query_lower in name.lower() or query_lower in code.lower():
             results.append({"code": code, "title": name, "source": "ICD-10 (local)"})
     return results
-
-
-async def get_disease_info(disease_name: str) -> dict[str, Any]:
-    """Get comprehensive disease information from multiple free sources."""
-    info = {
-        "name": disease_name,
-        "icd_codes": [],
-        "description": "",
-        "symptoms": [],
-        "risk_factors": [],
-        "diagnostics": [],
-        "treatment_guidelines": [],
-    }
-
-    # Search ICD codes
-    info["icd_codes"] = await search_icd11(disease_name, max_results=5)
-
-    return info
-
-
-async def search_who_guidelines(topic: str) -> list[dict]:
-    """Search WHO guidelines and recommendations."""
-    async with httpx.AsyncClient(timeout=30) as client:
-        try:
-            resp = await client.get(
-                "https://app.magicapp.org/api/v1/guidelines",
-                params={"q": topic, "limit": 5},
-                headers={"Accept": "application/json"},
-            )
-            if resp.status_code == 200:
-                return resp.json().get("results", [])
-        except Exception:
-            pass
-    return []
