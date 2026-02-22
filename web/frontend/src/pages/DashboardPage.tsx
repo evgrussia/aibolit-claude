@@ -16,9 +16,10 @@ import AddDiagnosisForm from '../components/forms/AddDiagnosisForm';
 import AddMedicationForm from '../components/forms/AddMedicationForm';
 import AddAllergyForm from '../components/forms/AddAllergyForm';
 import EditProfileForm from '../components/forms/EditProfileForm';
+import ConfirmDialog from '../components/shared/ConfirmDialog';
 import {
   FileText, Plus, MessageSquare, ShieldAlert, Pill, HeartPulse,
-  AlertTriangle, Clock, UserCog,
+  AlertTriangle, Clock, UserCog, Trash2,
 } from 'lucide-react';
 
 type ModalType = 'vitals' | 'diagnosis' | 'medication' | 'allergy' | 'profile' | null;
@@ -67,8 +68,20 @@ export default function DashboardPage() {
   const mutations = usePatientMutations(patientId);
   const toast = useToast();
   const [modal, setModal] = useState<ModalType>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ table: string; id: number; label: string } | null>(null);
 
   const closeModal = () => setModal(null);
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return;
+    try {
+      await mutations.deleteRecord.mutateAsync({ table: deleteTarget.table, recordId: deleteTarget.id });
+      toast.success(`${deleteTarget.label} удалено`);
+      setDeleteTarget(null);
+    } catch (err) {
+      toast.error((err as Error).message || 'Ошибка удаления');
+    }
+  };
 
   const makeSubmitHandler = (
     mutationFn: { mutateAsync: (data: Record<string, unknown>) => Promise<unknown> },
@@ -169,7 +182,11 @@ export default function DashboardPage() {
         </div>
 
         <div className="relative">
-          <DiagnosesList diagnoses={patient.diagnoses} compact />
+          <DiagnosesList
+            diagnoses={patient.diagnoses}
+            compact
+            onDelete={(id) => setDeleteTarget({ table: 'diagnoses', id, label: 'Диагноз' })}
+          />
           <button
             onClick={() => setModal('diagnosis')}
             className="absolute top-3.5 right-5 p-1 rounded-md hover:bg-medical-teal/10 text-medical-teal transition-colors"
@@ -183,7 +200,10 @@ export default function DashboardPage() {
       {/* Medications + Allergies */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="relative">
-          <MedicationsList medications={patient.medications} />
+          <MedicationsList
+            medications={patient.medications}
+            onDelete={(id) => setDeleteTarget({ table: 'medications', id, label: 'Препарат' })}
+          />
           <button
             onClick={() => setModal('medication')}
             className="absolute top-3.5 right-5 p-1 rounded-md hover:bg-medical-teal/10 text-medical-teal transition-colors"
@@ -200,18 +220,29 @@ export default function DashboardPage() {
             ) : (
               <div className="space-y-2">
                 {patient.allergies.map((a, i) => (
-                  <div key={i} className="flex items-center justify-between py-1.5 border-b border-gray-50 last:border-0">
+                  <div key={a.id ?? i} className="flex items-center justify-between py-1.5 border-b border-gray-50 last:border-0">
                     <div>
                       <span className="text-sm font-medium text-gray-700">{a.substance}</span>
                       {a.reaction && <span className="text-xs text-gray-400 ml-2">{a.reaction}</span>}
                     </div>
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                      a.severity === 'severe' ? 'bg-red-100 text-red-700' :
-                      a.severity === 'moderate' ? 'bg-amber-100 text-amber-700' :
-                      'bg-yellow-100 text-yellow-700'
-                    }`}>
-                      {a.severity === 'severe' ? 'Тяжёлая' : a.severity === 'moderate' ? 'Умеренная' : 'Лёгкая'}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                        a.severity === 'severe' ? 'bg-red-100 text-red-700' :
+                        a.severity === 'moderate' ? 'bg-amber-100 text-amber-700' :
+                        'bg-yellow-100 text-yellow-700'
+                      }`}>
+                        {a.severity === 'severe' ? 'Тяжёлая' : a.severity === 'moderate' ? 'Умеренная' : 'Лёгкая'}
+                      </span>
+                      {a.id != null && (
+                        <button
+                          onClick={() => setDeleteTarget({ table: 'allergies', id: a.id!, label: `Аллергия "${a.substance}"` })}
+                          className="p-1 rounded hover:bg-red-50 text-gray-300 hover:text-red-500 transition-colors"
+                          title="Удалить"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -286,6 +317,15 @@ export default function DashboardPage() {
           isPending={mutations.profile.isPending}
         />
       </Modal>
+
+      <ConfirmDialog
+        isOpen={deleteTarget !== null}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDeleteConfirm}
+        title="Подтвердите удаление"
+        message={`Вы уверены, что хотите удалить: ${deleteTarget?.label ?? ''}?`}
+        isPending={mutations.deleteRecord.isPending}
+      />
     </div>
   );
 }

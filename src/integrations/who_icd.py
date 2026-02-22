@@ -43,6 +43,18 @@ async def search_icd11(query: str, max_results: int = 10) -> list[dict[str, Any]
             return _fallback_icd_search(query)
 
 
+async def get_disease_info(name: str) -> dict[str, Any]:
+    """Get disease information by searching ICD-11 and returning structured data."""
+    results = await search_icd11(name, max_results=5)
+    return {
+        "name": name,
+        "icd_codes": results,
+        "description": results[0].get("definition", "") if results else "",
+        "symptoms": [],
+        "risk_factors": [],
+    }
+
+
 def _fallback_icd_search(query: str) -> list[dict]:
     """Fallback ICD search using local ICD-10 database."""
     from ..models.medical_refs import ICD10_COMMON

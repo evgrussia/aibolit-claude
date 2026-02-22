@@ -65,3 +65,13 @@ export async function updatePatient(patientId: string, updates: Record<string, u
   const { data } = await api.patch(`/patients/${patientId}`, updates);
   return data;
 }
+
+export async function deleteSubRecord(patientId: string, table: string, recordId: number) {
+  const { data } = await api.delete(`/patients/${patientId}/${table}/${recordId}`);
+  return data;
+}
+
+export async function updateSubRecord(patientId: string, table: string, recordId: number, fields: Record<string, unknown>) {
+  const { data } = await api.patch(`/patients/${patientId}/${table}/${recordId}`, fields);
+  return data;
+}

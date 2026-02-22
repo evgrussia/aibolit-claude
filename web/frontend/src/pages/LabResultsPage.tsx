@@ -11,7 +11,8 @@ import Modal from '../components/shared/Modal';
 import LoadingSpinner from '../components/shared/LoadingSpinner';
 import ApiError from '../components/shared/ApiError';
 import AddLabResultForm from '../components/forms/AddLabResultForm';
-import { FlaskConical, TrendingUp, Plus } from 'lucide-react';
+import ConfirmDialog from '../components/shared/ConfirmDialog';
+import { FlaskConical, TrendingUp, Plus, Trash2 } from 'lucide-react';
 import { formatDate } from '../utils/formatters';
 import type { LabResult } from '../types/patient';
 
@@ -21,6 +22,7 @@ export default function LabResultsPage() {
   const [selectedTest, setSelectedTest] = useState('');
   const { data: trendData = [] } = useLabTrends(patientId, selectedTest);
   const [showForm, setShowForm] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: number; label: string } | null>(null);
   const mutations = usePatientMutations(patientId);
   const toast = useToast();
 
@@ -36,6 +38,17 @@ export default function LabResultsPage() {
       setShowForm(false);
     } catch (err) {
       toast.error((err as Error).message || 'Ошибка сохранения');
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      await mutations.deleteRecord.mutateAsync({ table: 'lab_results', recordId: deleteTarget.id });
+      toast.success('Результат удалён');
+      setDeleteTarget(null);
+    } catch (err) {
+      toast.error((err as Error).message || 'Ошибка удаления');
     }
   };
 
@@ -94,11 +107,12 @@ export default function LabResultsPage() {
                 <th scope="col" className="pb-3 font-medium">Норма</th>
                 <th scope="col" className="pb-3 font-medium">Дата</th>
                 <th scope="col" className="pb-3 font-medium">Статус</th>
+                <th scope="col" className="pb-3 font-medium w-10"></th>
               </tr>
             </thead>
             <tbody>
               {patient.lab_results.map((lr: LabResult, i: number) => (
-                <tr key={i} className="border-b border-gray-50 hover:bg-gray-50/50">
+                <tr key={lr.id ?? i} className="border-b border-gray-50 hover:bg-gray-50/50">
                   <td className="py-2.5 font-medium text-gray-700 max-w-xs truncate">{lr.test_name}</td>
                   <td className="py-2.5 font-mono">{lr.value}</td>
                   <td className="py-2.5 text-gray-400">{lr.unit}</td>
@@ -108,6 +122,17 @@ export default function LabResultsPage() {
                     <Badge variant={lr.is_abnormal ? 'danger' : 'success'}>
                       {lr.is_abnormal ? 'Отклонение' : 'Норма'}
                     </Badge>
+                  </td>
+                  <td className="py-2.5">
+                    {lr.id != null && (
+                      <button
+                        onClick={() => setDeleteTarget({ id: lr.id!, label: lr.test_name })}
+                        className="p-1 rounded hover:bg-red-50 text-gray-300 hover:text-red-500 transition-colors"
+                        title="Удалить"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -119,6 +144,15 @@ export default function LabResultsPage() {
       <Modal isOpen={showForm} onClose={() => setShowForm(false)} title="Добавить результат анализа">
         <AddLabResultForm onSubmit={handleSubmit} isPending={mutations.lab.isPending} />
       </Modal>
+
+      <ConfirmDialog
+        isOpen={deleteTarget !== null}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
+        title="Удалить результат анализа"
+        message={`Удалить результат "${deleteTarget?.label ?? ''}"?`}
+        isPending={mutations.deleteRecord.isPending}
+      />
     </div>
   );
 }

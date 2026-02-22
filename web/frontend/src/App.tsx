@@ -15,6 +15,7 @@ import HealthTimelinePage from './pages/HealthTimelinePage';
 import DiagnosticsPage from './pages/DiagnosticsPage';
 import DrugToolsPage from './pages/DrugToolsPage';
 import DocumentsPage from './pages/DocumentsPage';
+import SettingsPage from './pages/SettingsPage';
 import LoadingSpinner from './components/shared/LoadingSpinner';
 
 const queryClient = new QueryClient({
@@ -63,6 +64,7 @@ export default function App() {
                     <Route path="/diagnostics" element={<DiagnosticsPage />} />
                     <Route path="/drugs" element={<DrugToolsPage />} />
                     <Route path="/documents" element={<DocumentsPage />} />
+                    <Route path="/settings" element={<SettingsPage />} />
                   </Route>
                 </Route>
                 <Route path="*" element={<Navigate to="/" replace />} />

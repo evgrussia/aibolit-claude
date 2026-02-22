@@ -26,6 +26,7 @@ class BloodType(str, Enum):
 @dataclass
 class VitalSigns:
     """Patient vital signs snapshot."""
+    id: int | None = None
     timestamp: datetime = field(default_factory=datetime.now)
     systolic_bp: int | None = None  # mmHg
     diastolic_bp: int | None = None  # mmHg
@@ -88,6 +89,7 @@ class Allergy:
     substance: str
     reaction: str = ""
     severity: str = "moderate"  # mild, moderate, severe
+    id: int | None = None
 
 
 @dataclass
@@ -100,6 +102,7 @@ class Medication:
     end_date: date | None = None
     prescribing_doctor: str = ""
     notes: str = ""
+    id: int | None = None
 
 
 @dataclass
@@ -111,6 +114,7 @@ class LabResult:
     date: date = field(default_factory=date.today)
     is_abnormal: bool = False
     notes: str = ""
+    id: int | None = None
 
 
 @dataclass
@@ -121,6 +125,7 @@ class Diagnosis:
     status: str = "active"  # active, resolved, chronic
     notes: str = ""
     confidence: float = 0.0  # AI confidence 0-1
+    id: int | None = None
 
 
 @dataclass

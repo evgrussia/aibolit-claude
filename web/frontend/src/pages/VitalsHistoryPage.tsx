@@ -9,13 +9,15 @@ import Modal from '../components/shared/Modal';
 import LoadingSpinner from '../components/shared/LoadingSpinner';
 import ApiError from '../components/shared/ApiError';
 import AddVitalsForm from '../components/forms/AddVitalsForm';
-import { HeartPulse, Plus } from 'lucide-react';
+import ConfirmDialog from '../components/shared/ConfirmDialog';
+import { HeartPulse, Plus, Trash2 } from 'lucide-react';
 import { formatDateTime } from '../utils/formatters';
 
 export default function VitalsHistoryPage() {
   const { patientId } = useParams();
   const { data: patient, isLoading, error, refetch } = usePatient(patientId);
   const [showForm, setShowForm] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: number; label: string } | null>(null);
   const mutations = usePatientMutations(patientId);
   const toast = useToast();
 
@@ -26,6 +28,17 @@ export default function VitalsHistoryPage() {
       setShowForm(false);
     } catch (err) {
       toast.error((err as Error).message || 'Ошибка сохранения');
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      await mutations.deleteRecord.mutateAsync({ table: 'vitals', recordId: deleteTarget.id });
+      toast.success('Запись удалена');
+      setDeleteTarget(null);
+    } catch (err) {
+      toast.error((err as Error).message || 'Ошибка удаления');
     }
   };
 
@@ -65,11 +78,12 @@ export default function VitalsHistoryPage() {
                   <th scope="col" className="pb-3 font-medium">SpO2</th>
                   <th scope="col" className="pb-3 font-medium">ЧД</th>
                   <th scope="col" className="pb-3 font-medium">Глюк.</th>
+                  <th scope="col" className="pb-3 font-medium w-10"></th>
                 </tr>
               </thead>
               <tbody>
                 {patient.vitals_history.map((v, i) => (
-                  <tr key={i} className="border-b border-gray-50 hover:bg-gray-50/50">
+                  <tr key={v.id ?? i} className="border-b border-gray-50 hover:bg-gray-50/50">
                     <td className="py-2.5 text-gray-600">{formatDateTime(v.timestamp)}</td>
                     <td className="py-2.5 font-mono">
                       {v.systolic_bp && v.diastolic_bp ? `${v.systolic_bp}/${v.diastolic_bp}` : '—'}
@@ -79,6 +93,17 @@ export default function VitalsHistoryPage() {
                     <td className="py-2.5 font-mono">{v.spo2 ?? '—'}%</td>
                     <td className="py-2.5 font-mono">{v.respiratory_rate ?? '—'}</td>
                     <td className="py-2.5 font-mono">{v.blood_glucose ?? '—'}</td>
+                    <td className="py-2.5">
+                      {v.id != null && (
+                        <button
+                          onClick={() => setDeleteTarget({ id: v.id!, label: formatDateTime(v.timestamp) })}
+                          className="p-1 rounded hover:bg-red-50 text-gray-300 hover:text-red-500 transition-colors"
+                          title="Удалить"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -90,6 +115,15 @@ export default function VitalsHistoryPage() {
       <Modal isOpen={showForm} onClose={() => setShowForm(false)} title="Записать витальные показатели">
         <AddVitalsForm onSubmit={handleSubmit} isPending={mutations.vitals.isPending} />
       </Modal>
+
+      <ConfirmDialog
+        isOpen={deleteTarget !== null}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
+        title="Удалить запись"
+        message={`Удалить показатели от ${deleteTarget?.label ?? ''}?`}
+        isPending={mutations.deleteRecord.isPending}
+      />
     </div>
   );
 }

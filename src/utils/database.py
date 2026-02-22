@@ -393,7 +393,7 @@ def load_patient(patient_id: str) -> Patient | None:
 
     # Allergies
     allergies = [
-        Allergy(substance=r["substance"], reaction=r["reaction"], severity=r["severity"])
+        Allergy(substance=r["substance"], reaction=r["reaction"], severity=r["severity"], id=r["id"])
         for r in conn.execute("SELECT * FROM allergies WHERE patient_id = ?", (pid,))
     ]
 
@@ -405,6 +405,7 @@ def load_patient(patient_id: str) -> Patient | None:
             start_date=date.fromisoformat(r["start_date"]) if r["start_date"] else None,
             end_date=date.fromisoformat(r["end_date"]) if r["end_date"] else None,
             prescribing_doctor=r["prescribing_doctor"], notes=r["notes"],
+            id=r["id"],
         )
         for r in conn.execute("SELECT * FROM medications WHERE patient_id = ?", (pid,))
     ]
@@ -415,6 +416,7 @@ def load_patient(patient_id: str) -> Patient | None:
             icd10_code=r["icd10_code"], name=r["name"],
             date_diagnosed=date.fromisoformat(r["date_diagnosed"]),
             status=r["status"], notes=r["notes"], confidence=r["confidence"],
+            id=r["id"],
         )
         for r in conn.execute("SELECT * FROM diagnoses WHERE patient_id = ?", (pid,))
     ]
@@ -427,6 +429,7 @@ def load_patient(patient_id: str) -> Patient | None:
             unit=r["unit"], reference_range=r["reference_range"],
             date=date.fromisoformat(r["date"]),
             is_abnormal=bool(r["is_abnormal"]), notes=r["notes"],
+            id=r["id"],
         )
         for r in conn.execute(
             "SELECT * FROM lab_results WHERE patient_id = ? ORDER BY date", (pid,)
@@ -436,6 +439,7 @@ def load_patient(patient_id: str) -> Patient | None:
     # Vitals
     vitals_history = [
         VitalSigns(
+            id=r["id"],
             timestamp=datetime.fromisoformat(r["timestamp"]),
             systolic_bp=r["systolic_bp"], diastolic_bp=r["diastolic_bp"],
             heart_rate=r["heart_rate"], temperature=r["temperature"],
@@ -633,6 +637,86 @@ def add_allergy(patient_id: str, allergy: Allergy) -> int:
             (patient_id,),
         )
     return cursor.lastrowid
+
+
+# ══════════════════════════════════════════════════════════════
+# Generic sub-record delete / update
+# ══════════════════════════════════════════════════════════════
+
+_SUB_TABLES = {"allergies", "medications", "diagnoses", "lab_results", "vitals"}
+
+
+def delete_sub_record(patient_id: str, table: str, record_id: int) -> bool:
+    """Delete a single sub-record by ID, verifying patient ownership.
+    Returns True if deleted.
+    """
+    if table not in _SUB_TABLES:
+        raise ValueError(f"Недопустимая таблица: {table}")
+    conn = get_connection()
+    with conn:
+        cursor = conn.execute(
+            f"DELETE FROM {table} WHERE id = ? AND patient_id = ?",
+            (record_id, patient_id),
+        )
+        if cursor.rowcount > 0:
+            conn.execute(
+                "UPDATE patients SET updated_at = datetime('now') WHERE id = ?",
+                (patient_id,),
+            )
+            return True
+    return False
+
+
+def update_sub_record(patient_id: str, table: str, record_id: int, fields: dict) -> bool:
+    """Update specific columns of a sub-record by ID, verifying patient ownership.
+    Returns True if updated.
+    """
+    if table not in _SUB_TABLES:
+        raise ValueError(f"Недопустимая таблица: {table}")
+    if not fields:
+        return False
+    # Only allow known columns (exclude id, patient_id, created_at)
+    conn = get_connection()
+    # Get valid column names from table
+    cursor = conn.execute(f"PRAGMA table_info({table})")
+    valid_cols = {r[1] for r in cursor.fetchall()} - {"id", "patient_id", "created_at"}
+    filtered = {k: v for k, v in fields.items() if k in valid_cols}
+    if not filtered:
+        return False
+    set_clause = ", ".join(f"{col} = ?" for col in filtered)
+    values = list(filtered.values()) + [record_id, patient_id]
+    with conn:
+        cur = conn.execute(
+            f"UPDATE {table} SET {set_clause} WHERE id = ? AND patient_id = ?",
+            values,
+        )
+        if cur.rowcount > 0:
+            conn.execute(
+                "UPDATE patients SET updated_at = datetime('now') WHERE id = ?",
+                (patient_id,),
+            )
+            return True
+    return False
+
+
+def update_patient_fields(patient_id: str, fields: dict) -> bool:
+    """Update core patient fields directly (first_name, last_name, date_of_birth, gender).
+    Returns True if updated.
+    """
+    allowed = {"first_name", "last_name", "date_of_birth", "gender",
+               "blood_type", "notes"}
+    filtered = {k: v for k, v in fields.items() if k in allowed}
+    if not filtered:
+        return False
+    conn = get_connection()
+    set_clause = ", ".join(f"{col} = ?" for col in filtered)
+    values = list(filtered.values()) + [patient_id]
+    with conn:
+        cur = conn.execute(
+            f"UPDATE patients SET {set_clause}, updated_at = datetime('now') WHERE id = ?",
+            values,
+        )
+    return cur.rowcount > 0
 
 
 # ══════════════════════════════════════════════════════════════
@@ -877,6 +961,25 @@ def link_user_to_patient(user_id: int, patient_id: str) -> None:
             "UPDATE users SET patient_id = ? WHERE id = ?",
             (patient_id, user_id),
         )
+
+
+def update_user_password(user_id: int, new_hash: str) -> bool:
+    """Update password hash for a user. Returns True if updated."""
+    conn = get_connection()
+    with conn:
+        cur = conn.execute(
+            "UPDATE users SET password_hash = ? WHERE id = ?",
+            (new_hash, user_id),
+        )
+    return cur.rowcount > 0
+
+
+def delete_user(user_id: int) -> bool:
+    """Delete a user account (patient record preserved). Returns True if deleted."""
+    conn = get_connection()
+    with conn:
+        cur = conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
+    return cur.rowcount > 0
 
 
 # ══════════════════════════════════════════════════════════════

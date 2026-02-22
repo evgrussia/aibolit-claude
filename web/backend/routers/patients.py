@@ -2,7 +2,7 @@
 import uuid
 from datetime import date, datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 
 from src.models.patient import (
     Patient, VitalSigns, LabResult, Diagnosis, Medication, Allergy, Gender, BloodType,
@@ -14,6 +14,7 @@ from src.utils.database import (
     add_allergy as db_add_allergy,
     get_lab_trends, get_vitals_trends, get_consultation_history,
     get_patients_by_diagnosis,
+    delete_sub_record, update_sub_record, update_patient_fields,
 )
 from ..auth import get_current_user, get_optional_user
 from ..schemas.patient import (
@@ -38,12 +39,12 @@ def _patient_to_response(p: Patient) -> PatientResponse:
         gender=p.gender.value,
         blood_type=p.blood_type.value if p.blood_type else None,
         allergies=[
-            AllergySchema(substance=a.substance, reaction=a.reaction, severity=a.severity)
+            AllergySchema(id=a.id, substance=a.substance, reaction=a.reaction, severity=a.severity)
             for a in p.allergies
         ],
         medications=[
             MedicationSchema(
-                name=m.name, dosage=m.dosage, frequency=m.frequency, route=m.route,
+                id=m.id, name=m.name, dosage=m.dosage, frequency=m.frequency, route=m.route,
                 start_date=m.start_date.isoformat() if m.start_date else None,
                 end_date=m.end_date.isoformat() if m.end_date else None,
                 prescribing_doctor=m.prescribing_doctor, notes=m.notes,
@@ -52,7 +53,7 @@ def _patient_to_response(p: Patient) -> PatientResponse:
         ],
         diagnoses=[
             DiagnosisSchema(
-                icd10_code=d.icd10_code, name=d.name,
+                id=d.id, icd10_code=d.icd10_code, name=d.name,
                 date_diagnosed=d.date_diagnosed.isoformat(),
                 status=d.status, notes=d.notes, confidence=d.confidence,
             )
@@ -60,7 +61,7 @@ def _patient_to_response(p: Patient) -> PatientResponse:
         ],
         lab_results=[
             LabResultSchema(
-                test_name=lr.test_name, value=lr.value, unit=lr.unit,
+                id=lr.id, test_name=lr.test_name, value=lr.value, unit=lr.unit,
                 reference_range=lr.reference_range, date=lr.date.isoformat(),
                 is_abnormal=lr.is_abnormal, notes=lr.notes,
             )
@@ -68,7 +69,7 @@ def _patient_to_response(p: Patient) -> PatientResponse:
         ],
         vitals_history=[
             VitalSignsSchema(
-                timestamp=v.timestamp.isoformat(),
+                id=v.id, timestamp=v.timestamp.isoformat(),
                 systolic_bp=v.systolic_bp, diastolic_bp=v.diastolic_bp,
                 heart_rate=v.heart_rate, temperature=v.temperature,
                 spo2=v.spo2, respiratory_rate=v.respiratory_rate,
@@ -247,6 +248,32 @@ def add_allergy(patient_id: str, req: AddAllergyRequest, current_user: dict | No
     return {"id": row_id, "message": f"Аллергия '{req.substance}' добавлена"}
 
 
+@router.delete("/{patient_id}/{table}/{record_id}")
+def delete_record(patient_id: str, table: str, record_id: int, current_user: dict | None = Depends(get_optional_user)):
+    _check_patient_access(patient_id, current_user)
+    try:
+        if not delete_sub_record(patient_id, table, record_id):
+            raise HTTPException(404, "Запись не найдена")
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"message": "Запись удалена"}
+
+
+@router.patch("/{patient_id}/{table}/{record_id}")
+def update_record(
+    patient_id: str, table: str, record_id: int,
+    fields: dict = Body(...),
+    current_user: dict | None = Depends(get_optional_user),
+):
+    _check_patient_access(patient_id, current_user)
+    try:
+        if not update_sub_record(patient_id, table, record_id, fields):
+            raise HTTPException(404, "Запись не найдена или нет изменений")
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"message": "Запись обновлена"}
+
+
 @router.patch("/{patient_id}")
 def update_patient(patient_id: str, req: UpdatePatientRequest, current_user: dict | None = Depends(get_optional_user)):
     _check_patient_access(patient_id, current_user)
@@ -254,16 +281,46 @@ def update_patient(patient_id: str, req: UpdatePatientRequest, current_user: dic
     if not p:
         raise HTTPException(404, f"Пациент {patient_id} не найден")
 
+    # Direct field updates via SQL for core patient fields
+    core_fields = {}
+    if req.first_name is not None:
+        core_fields["first_name"] = req.first_name
+    if req.last_name is not None:
+        core_fields["last_name"] = req.last_name
+    if req.date_of_birth is not None:
+        core_fields["date_of_birth"] = req.date_of_birth
+    if req.gender is not None:
+        core_fields["gender"] = req.gender
     if req.blood_type is not None:
-        p.blood_type = BloodType(req.blood_type) if req.blood_type else None
+        core_fields["blood_type"] = req.blood_type if req.blood_type else None
     if req.notes is not None:
-        p.notes = req.notes
+        core_fields["notes"] = req.notes
+
+    if core_fields:
+        update_patient_fields(patient_id, core_fields)
+
+    # List fields still use save_patient (replace-all strategy)
+    needs_save = False
     if req.family_history is not None:
         p.family_history = req.family_history
+        needs_save = True
     if req.surgical_history is not None:
         p.surgical_history = req.surgical_history
+        needs_save = True
     if req.lifestyle is not None:
         p.lifestyle = req.lifestyle
+        needs_save = True
 
-    save_patient(p)
+    if needs_save:
+        # Reload patient to get updated core fields
+        p = load_patient(patient_id)
+        if p:
+            if req.family_history is not None:
+                p.family_history = req.family_history
+            if req.surgical_history is not None:
+                p.surgical_history = req.surgical_history
+            if req.lifestyle is not None:
+                p.lifestyle = req.lifestyle
+            save_patient(p)
+
     return {"message": "Данные пациента обновлены"}

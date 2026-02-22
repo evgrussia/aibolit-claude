@@ -10,7 +10,17 @@ interface Props {
 
 const BLOOD_TYPES = ['', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
+const GENDERS = [
+  { value: 'male', label: 'Мужской' },
+  { value: 'female', label: 'Женский' },
+  { value: 'other', label: 'Другой' },
+];
+
 export default function EditProfileForm({ patient, onSubmit, isPending }: Props) {
+  const [firstName, setFirstName] = useState(patient.first_name);
+  const [lastName, setLastName] = useState(patient.last_name);
+  const [dateOfBirth, setDateOfBirth] = useState(patient.date_of_birth);
+  const [gender, setGender] = useState(patient.gender);
   const [bloodType, setBloodType] = useState(patient.blood_type || '');
   const [notes, setNotes] = useState(patient.notes || '');
   const [familyHistory, setFamilyHistory] = useState<string[]>([...patient.family_history]);
@@ -46,6 +56,10 @@ export default function EditProfileForm({ patient, onSubmit, isPending }: Props)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     await onSubmit({
+      first_name: firstName,
+      last_name: lastName,
+      date_of_birth: dateOfBirth,
+      gender,
       blood_type: bloodType || null,
       notes,
       family_history: familyHistory,
@@ -56,6 +70,57 @@ export default function EditProfileForm({ patient, onSubmit, isPending }: Props)
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
+      {/* Personal data */}
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label htmlFor="profile-last-name" className="block text-xs font-medium text-gray-600 mb-1">Фамилия</label>
+          <input
+            id="profile-last-name"
+            value={lastName}
+            onChange={e => setLastName(e.target.value)}
+            disabled={isPending}
+            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-medical-teal/30 disabled:opacity-50"
+          />
+        </div>
+        <div>
+          <label htmlFor="profile-first-name" className="block text-xs font-medium text-gray-600 mb-1">Имя</label>
+          <input
+            id="profile-first-name"
+            value={firstName}
+            onChange={e => setFirstName(e.target.value)}
+            disabled={isPending}
+            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-medical-teal/30 disabled:opacity-50"
+          />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label htmlFor="profile-dob" className="block text-xs font-medium text-gray-600 mb-1">Дата рождения</label>
+          <input
+            id="profile-dob"
+            type="date"
+            value={dateOfBirth}
+            onChange={e => setDateOfBirth(e.target.value)}
+            disabled={isPending}
+            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-medical-teal/30 disabled:opacity-50"
+          />
+        </div>
+        <div>
+          <label htmlFor="profile-gender" className="block text-xs font-medium text-gray-600 mb-1">Пол</label>
+          <select
+            id="profile-gender"
+            value={gender}
+            onChange={e => setGender(e.target.value)}
+            disabled={isPending}
+            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-medical-teal/30 disabled:opacity-50"
+          >
+            {GENDERS.map(g => (
+              <option key={g.value} value={g.value}>{g.label}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
       {/* Blood type */}
       <div>
         <label htmlFor="profile-blood" className="block text-xs font-medium text-gray-600 mb-1">

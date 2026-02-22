@@ -6,12 +6,14 @@ export interface PatientSummary {
 }
 
 export interface Allergy {
+  id?: number;
   substance: string;
   reaction: string;
   severity: string;
 }
 
 export interface Medication {
+  id?: number;
   name: string;
   dosage: string;
   frequency: string;
@@ -23,6 +25,7 @@ export interface Medication {
 }
 
 export interface Diagnosis {
+  id?: number;
   icd10_code: string;
   name: string;
   date_diagnosed: string;
@@ -32,6 +35,7 @@ export interface Diagnosis {
 }
 
 export interface LabResult {
+  id?: number;
   test_name: string;
   value: number | string;
   unit: string;
@@ -42,6 +46,7 @@ export interface LabResult {
 }
 
 export interface VitalSigns {
+  id?: number;
   timestamp: string;
   systolic_bp: number | null;
   diastolic_bp: number | null;

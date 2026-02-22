@@ -3,12 +3,14 @@ from pydantic import BaseModel
 
 
 class AllergySchema(BaseModel):
+    id: int | None = None
     substance: str
     reaction: str = ""
     severity: str = "moderate"
 
 
 class MedicationSchema(BaseModel):
+    id: int | None = None
     name: str
     dosage: str
     frequency: str
@@ -20,6 +22,7 @@ class MedicationSchema(BaseModel):
 
 
 class DiagnosisSchema(BaseModel):
+    id: int | None = None
     icd10_code: str
     name: str
     date_diagnosed: str = ""
@@ -29,6 +32,7 @@ class DiagnosisSchema(BaseModel):
 
 
 class LabResultSchema(BaseModel):
+    id: int | None = None
     test_name: str
     value: float | str
     unit: str = ""
@@ -39,6 +43,7 @@ class LabResultSchema(BaseModel):
 
 
 class VitalSignsSchema(BaseModel):
+    id: int | None = None
     timestamp: str = ""
     systolic_bp: int | None = None
     diastolic_bp: int | None = None
@@ -130,6 +135,10 @@ class AddAllergyRequest(BaseModel):
 
 
 class UpdatePatientRequest(BaseModel):
+    first_name: str | None = None
+    last_name: str | None = None
+    date_of_birth: str | None = None
+    gender: str | None = None
     blood_type: str | None = None
     notes: str | None = None
     family_history: list[str] | None = None

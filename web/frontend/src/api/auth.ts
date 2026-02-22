@@ -27,3 +27,16 @@ export async function getMe(): Promise<MeResponse> {
   const { data } = await api.get('/auth/me');
   return data;
 }
+
+export async function changePassword(oldPassword: string, newPassword: string) {
+  const { data } = await api.post('/auth/change-password', {
+    old_password: oldPassword,
+    new_password: newPassword,
+  });
+  return data;
+}
+
+export async function deleteAccount() {
+  const { data } = await api.delete('/auth/me');
+  return data;
+}

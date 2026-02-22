@@ -2,7 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, FlaskConical, HeartPulse,
   Stethoscope, Activity, Pill, FileText, Heart,
-  MessageSquare, Clock, LogOut, X, User,
+  MessageSquare, Clock, LogOut, X, User, Settings,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuth } from '../../contexts/AuthContext';
@@ -107,6 +107,9 @@ export default function Sidebar({ onClose }: SidebarProps) {
             Только для демо и обучения
           </p>
         </div>
+        <NavLink to="/settings" className={navClass} onClick={handleNavClick}>
+          <Settings size={16} /> Настройки
+        </NavLink>
         <button
           onClick={handleLogout}
           className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-blue-200 hover:bg-white/10 hover:text-white transition"

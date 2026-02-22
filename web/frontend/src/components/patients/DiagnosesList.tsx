@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ShieldAlert, ChevronRight } from 'lucide-react';
+import { ShieldAlert, ChevronRight, Trash2 } from 'lucide-react';
 import Badge from '../shared/Badge';
 import Card from '../shared/Card';
 import { formatDate, statusLabel } from '../../utils/formatters';
@@ -9,6 +9,7 @@ import type { Diagnosis } from '../../types/patient';
 interface Props {
   diagnoses: Diagnosis[];
   compact?: boolean;
+  onDelete?: (id: number) => void;
 }
 
 function statusVariant(s: string) {
@@ -20,7 +21,7 @@ function statusVariant(s: string) {
   }
 }
 
-export default memo(function DiagnosesList({ diagnoses, compact }: Props) {
+export default memo(function DiagnosesList({ diagnoses, compact, onDelete }: Props) {
   const { patientId } = useParams();
   const items = compact ? diagnoses.filter(d => d.status !== 'resolved').slice(0, 8) : diagnoses;
 
@@ -44,6 +45,15 @@ export default memo(function DiagnosesList({ diagnoses, compact }: Props) {
                 </div>
                 <div className="flex items-center gap-2 shrink-0 ml-3">
                   <span className="text-xs text-gray-400">{formatDate(d.date_diagnosed)}</span>
+                  {onDelete && d.id != null && (
+                    <button
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDelete(d.id!); }}
+                      className="p-1 rounded hover:bg-red-50 text-gray-300 hover:text-red-500 transition-colors"
+                      title="Удалить"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )}
                   {patientId && (
                     <ChevronRight size={14} className="text-gray-300 group-hover:text-medical-teal transition-colors" />
                   )}

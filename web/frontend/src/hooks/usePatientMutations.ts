@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   addVitals, addLabResult, addDiagnosis, addMedication, addAllergy, updatePatient,
+  deleteSubRecord, updateSubRecord,
 } from '../api/patients';
 
 export function usePatientMutations(patientId: string | undefined) {
@@ -42,5 +43,17 @@ export function usePatientMutations(patientId: string | undefined) {
     onSuccess: invalidate,
   });
 
-  return { vitals, lab, diagnosis, medication, allergy, profile };
+  const deleteRecord = useMutation({
+    mutationFn: ({ table, recordId }: { table: string; recordId: number }) =>
+      deleteSubRecord(patientId!, table, recordId),
+    onSuccess: invalidate,
+  });
+
+  const updateRecord = useMutation({
+    mutationFn: ({ table, recordId, fields }: { table: string; recordId: number; fields: Record<string, unknown> }) =>
+      updateSubRecord(patientId!, table, recordId, fields),
+    onSuccess: invalidate,
+  });
+
+  return { vitals, lab, diagnosis, medication, allergy, profile, deleteRecord, updateRecord };
 }

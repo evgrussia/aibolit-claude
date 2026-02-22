@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from src.models.patient import Patient, Gender, BloodType, Allergy
 from src.utils.database import (
     save_patient, create_user, get_user_by_username, get_user_by_id,
-    link_user_to_patient,
+    link_user_to_patient, update_user_password, delete_user,
 )
 from ..auth import hash_password, verify_password, create_token, get_current_user
 
@@ -36,6 +36,11 @@ class AuthResponse(BaseModel):
     token: str
     patient_id: str
     username: str
+
+
+class ChangePasswordRequest(BaseModel):
+    old_password: str
+    new_password: str
 
 
 class MeResponse(BaseModel):
@@ -100,3 +105,24 @@ def me(current_user: dict = Depends(get_current_user)):
         username=user["username"],
         patient_id=user["patient_id"],
     )
+
+
+@router.post("/change-password")
+def change_password(req: ChangePasswordRequest, current_user: dict = Depends(get_current_user)):
+    user = get_user_by_id(current_user["user_id"])
+    if not user:
+        raise HTTPException(401, "Пользователь не найден")
+    if not verify_password(req.old_password, user["password_hash"]):
+        raise HTTPException(400, "Неверный текущий пароль")
+    if len(req.new_password) < 4:
+        raise HTTPException(400, "Новый пароль должен содержать минимум 4 символа")
+    new_hash = hash_password(req.new_password)
+    update_user_password(current_user["user_id"], new_hash)
+    return {"message": "Пароль успешно изменён"}
+
+
+@router.delete("/me")
+def delete_account(current_user: dict = Depends(get_current_user)):
+    if not delete_user(current_user["user_id"]):
+        raise HTTPException(404, "Пользователь не найден")
+    return {"message": "Аккаунт удалён"}
