@@ -1,4 +1,4 @@
-# 🏥 Aibolit — AI Medical Clinic
+# Aibolit — AI Medical Clinic
 
 > Виртуальная медицинская клиника с 35 AI-врачами, MCP-сервером для Claude и полноценным веб-порталом.
 
@@ -8,16 +8,20 @@
 
 1. [Обзор системы](#обзор-системы)
 2. [Быстрый старт](#быстрый-старт)
-3. [Установка](#установка)
+3. [Установка и запуск](#установка-и-запуск)
+   - [Docker (рекомендуется)](#вариант-1-docker-рекомендуется)
+   - [Локальная установка](#вариант-2-локальная-установка)
 4. [MCP-сервер: интеграция с Claude](#mcp-сервер-интеграция-с-claude)
 5. [Веб-портал](#веб-портал)
-6. [Диагностические инструменты](#диагностические-инструменты)
-7. [Справочник API](#справочник-api)
-8. [35 Специализаций врачей](#35-специализаций-врачей)
-9. [Примеры использования](#примеры-использования)
-10. [Архитектура](#архитектура)
-11. [Разработка](#разработка)
-12. [Отказ от ответственности](#отказ-от-ответственности)
+6. [Аутентификация](#аутентификация)
+7. [Диагностические инструменты](#диагностические-инструменты)
+8. [Справочник API](#справочник-api)
+9. [35 Специализаций врачей](#35-специализаций-врачей)
+10. [Примеры использования](#примеры-использования)
+11. [Архитектура](#архитектура)
+12. [Разработка](#разработка)
+13. [FAQ](#faq)
+14. [Отказ от ответственности](#отказ-от-ответственности)
 
 ---
 
@@ -28,52 +32,67 @@
 | Режим | Описание |
 |---|---|
 | **MCP-сервер** | 31 инструмент для Claude.ai и Claude Code |
-| **Веб-портал** | React-приложение с FastAPI бэкендом |
+| **Веб-портал** | React-приложение с FastAPI бэкендом (порт 8007) |
 
 ### Что умеет система
 
 - **Консультации у 35 AI-врачей** — от терапевта до нейрохирурга и врача скорой помощи
 - **Расшифровка анализов** — 67 лабораторных показателей с автоматическим выявлением паттернов
-- **Оценка витальных показателей** — АД, пульс, SpO₂, температура, глюкоза
+- **Оценка витальных показателей** — АД, пульс, SpO2, температура, глюкоза
 - **Расчёт СКФ** по формуле CKD-EPI 2021 со стадированием ХБП
 - **10-летний СС-риск** по модели SCORE2
 - **Информация о лекарствах** — показания, противопоказания, побочные эффекты из базы FDA
 - **Проверка взаимодействий** — 12 критических пар + RxNorm API
 - **Поиск литературы** в PubMed и клинических исследований на ClinicalTrials.gov
 - **Генерация документов** — рецепты, направления, выписные эпикризы
-- **Ведение пациентов** — история анализов, витальных показателей, консультаций
+- **Ведение пациентов** — регистрация, история анализов, витальных показателей, консультаций
+- **Аутентификация** — JWT-авторизация, регистрация пациентов через веб-портал
 
 ---
 
 ## Быстрый старт
 
-### Вариант 1: MCP (Claude.ai / Claude Code)
+### Вариант A: Docker (одна команда)
 
 ```bash
-git clone https://github.com/your-org/aibolit-clinic
-cd aibolit-clinic
+git clone https://github.com/evgrussia/aibolit-claude.git
+cd aibolit-claude
+docker compose up -d
+```
+
+Откройте http://localhost — зарегистрируйтесь и начните работу.
+
+### Вариант B: MCP-сервер (для Claude.ai / Claude Code)
+
+```bash
+git clone https://github.com/evgrussia/aibolit-claude.git
+cd aibolit-claude
 pip install -e .
 ```
 
-Добавьте в `claude_desktop_config.json`:
+Добавьте в конфигурацию Claude (подробнее в разделе [MCP-сервер](#mcp-сервер-интеграция-с-claude)):
 ```json
 {
   "mcpServers": {
-    "aibolit": {
+    "aibolit-clinic": {
       "command": "python",
-      "args": ["-m", "src.mcp_server"],
-      "cwd": "/path/to/aibolit-clinic"
+      "args": ["run.py"],
+      "cwd": "/path/to/aibolit-claude"
     }
   }
 }
 ```
 
-### Вариант 2: Веб-портал
+### Вариант C: Локальная разработка
 
 ```bash
+git clone https://github.com/evgrussia/aibolit-claude.git
+cd aibolit-claude
+
 # Бэкенд
 pip install -r requirements.txt
-python -m uvicorn web.backend.main:app --reload --port 8000
+pip install fastapi uvicorn python-multipart
+python -m uvicorn web.backend.main:app --reload --port 8007
 
 # Фронтенд (в другом терминале)
 cd web/frontend
@@ -85,9 +104,112 @@ npm run dev
 
 ---
 
-## Установка
+## Установка и запуск
 
-### Требования
+### Вариант 1: Docker (рекомендуется)
+
+Docker — самый простой способ запустить систему. Все зависимости, сборка фронтенда и настройка nginx происходят автоматически.
+
+#### Требования
+
+| Компонент | Версия |
+|---|---|
+| Docker | 20.10+ |
+| Docker Compose | v2+ |
+
+#### Шаг 1: Клонирование
+
+```bash
+git clone https://github.com/evgrussia/aibolit-claude.git
+cd aibolit-claude
+```
+
+#### Шаг 2: Настройка (опционально)
+
+Создайте файл `.env` для переопределения параметров:
+
+```env
+# Секретный ключ для JWT-токенов (обязательно менять в продакшене!)
+AIBOLIT_SECRET_KEY=my-super-secret-key
+
+# Порт для доступа к приложению (по умолчанию 80)
+PORT=8080
+```
+
+Если `.env` не создан, используются значения по умолчанию.
+
+#### Шаг 3: Сборка и запуск
+
+```bash
+# Сборка образов (первый раз займёт 2-3 минуты)
+docker compose build
+
+# Запуск в фоне
+docker compose up -d
+```
+
+#### Шаг 4: Проверка
+
+```bash
+# Проверка здоровья бэкенда
+curl http://localhost/api/health
+# → {"status":"ok","service":"aibolit-portal"}
+
+# Просмотр логов
+docker compose logs -f
+
+# Статус контейнеров
+docker compose ps
+```
+
+Откройте http://localhost (или http://localhost:8080 если указали `PORT=8080`) — должна загрузиться страница входа.
+
+#### Управление
+
+```bash
+# Остановить
+docker compose down
+
+# Остановить и удалить данные (база пациентов!)
+docker compose down -v
+
+# Пересобрать после изменений кода
+docker compose build && docker compose up -d
+
+# Посмотреть логи бэкенда
+docker compose logs backend
+
+# Посмотреть логи nginx
+docker compose logs nginx
+```
+
+#### Архитектура Docker
+
+```
+             :80 (или PORT)
+              │
+       ┌──────────────┐
+       │     nginx     │
+       │  (контейнер)  │
+       │               │
+       │  /api/* ──────────► backend:8007
+       │  /*    → dist/ │    (контейнер)
+       └──────────────┘
+              │
+       [named volume]  ← SQLite (aibolit-data)
+```
+
+- **nginx** — раздаёт собранный React SPA и проксирует `/api/` на бэкенд
+- **backend** — Python/FastAPI, слушает порт 8007 внутри Docker-сети
+- **aibolit-data** — именованный Docker-том для хранения SQLite базы
+
+---
+
+### Вариант 2: Локальная установка
+
+Для разработки или если Docker не доступен.
+
+#### Требования
 
 | Компонент | Версия |
 |---|---|
@@ -95,71 +217,104 @@ npm run dev
 | Node.js | 18+ |
 | npm | 9+ |
 
-### Шаг 1: Клонирование и зависимости
+#### Шаг 1: Клонирование и Python-зависимости
 
 ```bash
-git clone https://github.com/your-org/aibolit-clinic
-cd aibolit-clinic
+git clone https://github.com/evgrussia/aibolit-claude.git
+cd aibolit-claude
 
-# Python-зависимости
+# Установка как пакет (включает MCP-сервер)
 pip install -e .
-# или
-pip install -r requirements.txt
 
-# Node-зависимости (для веб-портала)
-cd web/frontend && npm install && cd ../..
+# Дополнительно для веб-портала
+pip install fastapi uvicorn[standard] python-multipart PyJWT
+# или всё сразу:
+pip install -r requirements.txt fastapi uvicorn[standard] python-multipart
 ```
 
-### Шаг 2: Инициализация базы данных
+#### Шаг 2: Node-зависимости (для веб-портала)
+
+```bash
+cd web/frontend
+npm install
+cd ../..
+```
+
+#### Шаг 3: Инициализация базы данных
 
 База данных SQLite создаётся **автоматически** при первом запуске в `data/aibolit.db`.
 
-Если у вас есть данные пациентов в формате JSON (`data/patients/*.json`), они будут автоматически мигрированы при первом запуске.
+Если есть данные пациентов в формате JSON (`data/patients/*.json`), они автоматически мигрируются при первом запуске.
 
 Ручная миграция:
 ```bash
 python scripts/migrate_json_to_sqlite.py
 ```
 
-### Шаг 3: Проверка
+#### Шаг 4: Запуск бэкенда
 
 ```bash
-# Проверка бэкенда
-curl http://localhost:8000/api/health
-# → {"status": "ok", "version": "1.0.0"}
+python -m uvicorn web.backend.main:app --reload --port 8007
 ```
+
+Проверка:
+```bash
+curl http://localhost:8007/api/health
+# → {"status":"ok","service":"aibolit-portal"}
+```
+
+#### Шаг 5: Запуск фронтенда (в другом терминале)
+
+```bash
+cd web/frontend
+npm run dev
+```
+
+Фронтенд запустится на http://localhost:5173 и автоматически проксирует `/api/` запросы на бэкенд (порт 8007).
+
+#### Шаг 6: Работа с системой
+
+1. Откройте http://localhost:5173
+2. Зарегистрируйтесь (логин, пароль, ФИО, дата рождения, пол)
+3. После входа — попадёте на дашборд со своей медкартой
 
 ---
 
 ## MCP-сервер: интеграция с Claude
 
+MCP-сервер предоставляет 31 инструмент, которые Claude вызывает автоматически во время диалога.
+
 ### Конфигурация для Claude Desktop
 
-Файл: `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
-или `%APPDATA%\Claude\claude_desktop_config.json` (Windows)
+Файл конфигурации:
+- **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
 
 ```json
 {
   "mcpServers": {
-    "aibolit": {
+    "aibolit-clinic": {
       "command": "python",
-      "args": ["-m", "src.mcp_server"],
-      "cwd": "/path/to/aibolit-clinic",
-      "env": {}
+      "args": ["run.py"],
+      "cwd": "C:\\path\\to\\aibolit-claude"
     }
   }
 }
 ```
 
+> `run.py` — лаунчер, который корректно настраивает пути модулей на любой ОС.
+
 ### Конфигурация для Claude Code
+
+Файл `.claude/settings.json` или глобальный конфиг:
 
 ```json
 {
   "mcpServers": {
-    "aibolit": {
+    "aibolit-clinic": {
       "command": "python",
       "args": ["run.py"],
-      "cwd": "/path/to/aibolit-clinic"
+      "cwd": "/path/to/aibolit-claude"
     }
   }
 }
@@ -176,32 +331,39 @@ Claude: [вызывает clinic_reception → consult_doctor(specialty="neurolo
 Рекомендую дополнительно проверить АД в динамике и сдать ОАК.
 ```
 
+### Доступные MCP-инструменты (31 tool)
+
+| Категория | Инструменты |
+|---|---|
+| Навигация | `clinic_reception`, `list_doctors`, `consult_doctor` |
+| Диагностика | `analyze_lab_results`, `assess_vitals`, `calculate_gfr`, `cardiovascular_risk` |
+| Лекарства | `drug_info`, `check_drug_interactions`, `drug_adverse_events`, `check_drug_recall` |
+| Литература | `search_medical_literature`, `get_article_abstract`, `search_clinical_trials` |
+| Классификация | `search_icd`, `search_snomed` |
+| Генетика | `gene_info`, `search_genetic_disorders`, `search_drug_targets` |
+| Документы | `generate_medical_record`, `generate_referral`, `generate_prescription`, `generate_discharge_summary` |
+| Пациенты | `register_patient`, `get_patient`, `list_patients`, `add_vitals`, `add_lab_result`, `add_diagnosis`, `add_medication`, `lab_reference_ranges` |
+| История | `get_consultation_history`, `get_lab_trends`, `get_vitals_history`, `search_patients`, `get_patients_by_diagnosis` |
+
 ---
 
 ## Веб-портал
 
-### Навигация по страницам
+### Страницы
 
-```
-/patients                      → Список пациентов
-/patients/:id                  → Дашборд пациента
-/patients/:id/labs             → Анализы и графики трендов
-/patients/:id/vitals           → Витальные показатели
-/patients/:id/consultations    → История консультаций
-/diagnostics                   → Диагностические инструменты
-/drugs                         → Информация о лекарствах
-/documents                     → Генератор документов
-```
-
-### Страница пациентов (`/patients`)
-
-- Список всех зарегистрированных пациентов
-- Поиск по имени/фамилии (от 2 символов)
-- Клик по пациенту → переход на его дашборд
+| Путь | Описание |
+|---|---|
+| `/login` | Вход и регистрация |
+| `/patients/:id` | Дашборд пациента |
+| `/patients/:id/labs` | Анализы и графики трендов |
+| `/patients/:id/vitals` | Витальные показатели |
+| `/patients/:id/consultations` | История консультаций AI-врачей |
+| `/diagnostics` | Диагностические инструменты (4 вкладки) |
+| `/drugs` | Информация о лекарствах и взаимодействия |
+| `/documents` | Генератор документов (рецепты, направления) |
 
 ### Дашборд пациента (`/patients/:id`)
 
-Отображает:
 - **Карточка пациента** — ФИО, возраст, пол, группа крови, аллергии
 - **Витальные показатели** — последние измерения (4 индикатора)
 - **Диагнозы** — список с кодами МКБ-10
@@ -213,13 +375,50 @@ Claude: [вызывает clinic_reception → consult_doctor(specialty="neurolo
 - Таблица всех результатов анализов
 - Подсветка отклонений (норма / повышено / критически)
 - **График трендов** — динамика любого показателя за всё время
-- Пример: выберите "Тестостерон общий" → кликабельный линейный график
 
 ### Витальные показатели (`/patients/:id/vitals`)
 
 - Хронологическая таблица измерений
 - **График АД** — систолическое и диастолическое давление в динамике
-- Опорные линии нормы (130 мм рт.ст. систол.)
+
+---
+
+## Аутентификация
+
+Веб-портал использует JWT-авторизацию.
+
+### Регистрация
+
+1. Откройте `/login` → вкладка «Регистрация»
+2. Шаг 1: Логин и пароль (мин. 4 символа)
+3. Шаг 2: ФИО, дата рождения, пол
+4. Шаг 3: Группа крови, аллергии (опционально)
+5. При регистрации автоматически создаётся медкарта пациента
+
+### Вход
+
+- Логин + пароль → JWT-токен (действителен 7 дней)
+- Токен хранится в `localStorage` браузера
+- После входа — автоматический переход на дашборд пациента
+
+### API-аутентификация
+
+```bash
+# Регистрация
+curl -X POST http://localhost:8007/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"username":"ivan","password":"1234","first_name":"Иван","last_name":"Иванов","date_of_birth":"1985-03-15","gender":"male"}'
+
+# Вход
+curl -X POST http://localhost:8007/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"ivan","password":"1234"}'
+# → {"token":"eyJ...","patient_id":"7facb1f2","username":"ivan"}
+
+# Защищённый запрос
+curl http://localhost:8007/api/v1/auth/me \
+  -H "Authorization: Bearer eyJ..."
+```
 
 ---
 
@@ -229,11 +428,7 @@ Claude: [вызывает clinic_reception → consult_doctor(specialty="neurolo
 
 ### 1. Анализ лабораторных показателей
 
-**Вкладка "Анализы"**
-
-Введите числовые значения (можно заполнить один или несколько показателей):
-
-| Показатель | Код | Единицы | Норма (мужчины) | Норма (женщины) |
+| Показатель | Код | Единицы | Норма (муж.) | Норма (жен.) |
 |---|---|---|---|---|
 | Гемоглобин | `hemoglobin` | г/л | 130–170 | 120–150 |
 | Глюкоза натощак | `glucose_fasting` | ммоль/л | 3.9–6.1 | 3.9–6.1 |
@@ -244,27 +439,9 @@ Claude: [вызывает clinic_reception → consult_doctor(specialty="neurolo
 | ТТГ | `tsh` | мкМЕ/мл | 0.4–4.0 | 0.4–4.0 |
 | HbA1c | `hba1c` | % | <6.0 | <6.0 |
 
-**Что показывает результат:**
-- Таблица с интерпретацией каждого показателя
-- Критические отклонения (красная рамка) — требуют срочного внимания
-- Выявленные паттерны — например, "Возможный сахарный диабет 2 типа"
-- Итоговое заключение
-
-**Пример результата:**
-```
-⚠️ Критические отклонения: Глюкоза натощак: 8.5 ммоль/л
-
-Выявленные паттерны:
-• Возможный сахарный диабет 2 типа или нарушение толерантности к глюкозе
-
-Заключение: Обнаружены отклонения в 2 из 3 введённых показателей...
-```
-
----
+Результат: таблица с интерпретацией, критические отклонения, выявленные паттерны, итоговое заключение.
 
 ### 2. Оценка витальных показателей
-
-**Вкладка "Витальные"**
 
 | Показатель | Норма | Критические значения |
 |---|---|---|
@@ -272,52 +449,33 @@ Claude: [вызывает clinic_reception → consult_doctor(specialty="neurolo
 | АД диастолическое | 60–85 мм рт.ст. | >120 или <50 |
 | ЧСС | 60–100 уд/мин | >150 или <40 |
 | Температура | 36.0–37.0 °C | >40.0 или <35.0 |
-| SpO₂ | 95–100% | <90% |
+| SpO2 | 95–100% | <90% |
 | ЧД | 12–20 /мин | >30 или <8 |
 | Глюкоза | 3.9–6.1 ммоль/л | >15 или <2.8 |
 
-Введите хотя бы один показатель — система оценит и выдаст рекомендации.
-
----
-
 ### 3. Расчёт СКФ (CKD-EPI)
-
-**Вкладка "СКФ"**
 
 Требуется: **Креатинин** (мкмоль/л), **Возраст** (лет), **Пол**.
 
-| Стадия | СКФ | Интерпретация | Цвет |
-|---|---|---|---|
-| G1 | ≥ 90 | Нормальная или высокая функция | 🟢 |
-| G2 | 60–89 | Лёгкое снижение | 🟡 |
-| G3a | 45–59 | Умеренное снижение | 🟠 |
-| G3b | 30–44 | Значимое снижение | 🟠 |
-| G4 | 15–29 | Выраженное снижение | 🔴 |
-| G5 | < 15 | Почечная недостаточность | ⛔ |
-
-**Пример:** Мужчина 39 лет, креатинин 92 мкмоль/л → **СКФ = 93.6**, стадия G1.
-
----
+| Стадия | СКФ | Интерпретация |
+|---|---|---|
+| G1 | ≥ 90 | Нормальная или высокая функция |
+| G2 | 60–89 | Лёгкое снижение |
+| G3a | 45–59 | Умеренное снижение |
+| G3b | 30–44 | Значимое снижение |
+| G4 | 15–29 | Выраженное снижение |
+| G5 | < 15 | Почечная недостаточность |
 
 ### 4. Сердечно-сосудистый риск (SCORE2)
-
-**Вкладка "СС-риск"**
 
 Обязательные поля: Возраст, АД систолическое, Холестерин общий, ЛПВП.
 Опциональные: Пол, Курение, Сахарный диабет, Лечение АД.
 
-| Уровень риска | Процент | Цвет |
-|---|---|---|
-| Низкий | < 5% | 🟢 |
-| Умеренный | 5–9% | 🟡 |
-| Высокий | ≥ 10% | 🔴 |
-
-Результат включает **диаграмму риска** и список рекомендаций.
-
-**Нормальные значения:**
-- Холестерин: 3.0–5.2 ммоль/л (норма: <5.0)
-- ЛПВП: мужчины >1.0, женщины >1.2 ммоль/л
-- АД систолическое: целевое <130 мм рт.ст.
+| Уровень риска | 10-летний риск |
+|---|---|
+| Низкий | < 5% |
+| Умеренный | 5–9% |
+| Высокий | ≥ 10% |
 
 ---
 
@@ -325,33 +483,18 @@ Claude: [вызывает clinic_reception → consult_doctor(specialty="neurolo
 
 ### Поиск препарата
 
-Используется база данных **OpenFDA** (Food and Drug Administration, США).
+Используется база данных **OpenFDA** (США). Поиск **только на английском языке** (МНН).
 
-- Поиск **только на английском языке** (МНН или торговое название)
-- Примеры: `metformin`, `lisinopril`, `warfarin`, `ibuprofen`, `atorvastatin`
-
-Возвращаемые данные:
-- МНН (generic name)
-- Класс препарата
-- Торговые названия
-- Показания
-- Дозировка
-- Противопоказания
-- Предупреждения
-- Нежелательные реакции
-- Отчёты об НЯ из базы FDA FAERS
-
-> **Примечание:** FDA — американский регулятор. Инструкции могут отличаться от российских.
+Примеры: `metformin`, `lisinopril`, `warfarin`, `ibuprofen`, `atorvastatin`
 
 ### Проверка взаимодействий
 
-Используются **две базы данных**:
+Две базы данных:
 1. Локальная база 12 критических пар (мгновенно)
 2. **RxNorm API** (NLM/NIH) — расширенная проверка
 
-Поддерживаемые языки ввода: **английский** (МНН).
-
 **Критические взаимодействия** (встроенная база):
+
 | Пара | Риск |
 |---|---|
 | Warfarin + Aspirin | Кровотечение |
@@ -366,45 +509,20 @@ Claude: [вызывает clinic_reception → consult_doctor(specialty="neurolo
 
 ### Рецепт
 
-1. Введите **ФИО пациента** (обязательно)
-2. Укажите **диагнозы** — каждый с новой строки
-3. Добавьте препараты (нажмите "+ Добавить"):
-   - Название препарата (обязательно)
-   - Доза: например `500мг`, `10мг`, `0.5мл`
-   - Кратность: выберите из списка
-   - Путь введения: `per os`, `в/в`, `в/м` и др.
-   - Длительность: например `14 дней`, `1 месяц`
-4. Нажмите **"Сформировать рецепт"**
+1. Введите **ФИО пациента**
+2. Укажите **диагнозы** (каждый с новой строки)
+3. Добавьте препараты: название, доза, кратность, путь введения, длительность
+4. Нажмите **«Сформировать рецепт»**
 
 Готовый документ можно **скопировать** или **скачать** как `.txt`.
 
-**Пример рецепта:**
-```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        ЛИСТ НАЗНАЧЕНИЙ
-        ИИ-Поликлиника «Айболит»
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Пациент: Иванов Иван Иванович
-Дата:    2026-02-22
-
-ДИАГНОЗЫ:
-  • Гипертоническая болезнь II ст.
-
-НАЗНАЧЕНИЯ:
-  1. Лизиноприл
-     Доза: 10мг  |  2 раза/сут  |  per os
-     Курс: 30 дней
-```
-
 ### Направление к специалисту
 
-1. Заполните **ФИО** и **возраст** пациента
-2. Выберите **специальность направляющего** врача
-3. Выберите **специальность получателя**
-4. Укажите **срочность**: Плановое / Срочное / Экстренное
-5. Напишите **причину направления** (обязательно)
-6. При наличии — добавьте диагнозы и результаты обследований
+1. ФИО и возраст пациента
+2. Специальность направляющего врача
+3. Специальность получателя
+4. Срочность: Плановое / Срочное / Экстренное
+5. Причина направления
 
 ---
 
@@ -412,9 +530,18 @@ Claude: [вызывает clinic_reception → consult_doctor(specialty="neurolo
 
 ### Базовый URL
 
-```
-http://localhost:8000/api/v1
-```
+| Режим | URL |
+|---|---|
+| Локальная разработка | `http://localhost:8007/api/v1` |
+| Docker | `http://localhost/api/v1` (или `PORT` из `.env`) |
+
+### Аутентификация
+
+| Метод | Путь | Описание |
+|---|---|---|
+| POST | `/auth/register` | Регистрация (создаёт пользователя + пациента) |
+| POST | `/auth/login` | Вход (возвращает JWT-токен) |
+| GET | `/auth/me` | Текущий пользователь (требует токен) |
 
 ### Пациенты
 
@@ -444,7 +571,7 @@ http://localhost:8000/api/v1
 
 **Пример: Расчёт СКФ**
 ```bash
-curl -X POST http://localhost:8000/api/v1/diagnostics/calculate-gfr \
+curl -X POST http://localhost:8007/api/v1/diagnostics/calculate-gfr \
   -H "Content-Type: application/json" \
   -d '{"creatinine": 92, "age": 39, "gender": "male"}'
 ```
@@ -454,19 +581,6 @@ curl -X POST http://localhost:8000/api/v1/diagnostics/calculate-gfr \
   "stage": "G1 — нормальная или высокая функция почек",
   "recommendation": "Регулярный мониторинг АД и анализов мочи"
 }
-```
-
-**Пример: Анализ анализов**
-```bash
-curl -X POST http://localhost:8000/api/v1/diagnostics/analyze-labs \
-  -H "Content-Type: application/json" \
-  -d '{
-    "results": [
-      {"test": "glucose_fasting", "value": 8.5},
-      {"test": "hba1c", "value": 7.2}
-    ],
-    "gender": "male"
-  }'
 ```
 
 ### Лекарства
@@ -479,19 +593,9 @@ curl -X POST http://localhost:8000/api/v1/diagnostics/analyze-labs \
 
 **Пример: Взаимодействия**
 ```bash
-curl -X POST http://localhost:8000/api/v1/drugs/interactions \
+curl -X POST http://localhost:8007/api/v1/drugs/interactions \
   -H "Content-Type: application/json" \
   -d '{"drugs": ["warfarin", "aspirin"]}'
-```
-```json
-[
-  {
-    "drug1": "warfarin",
-    "drug2": "aspirin",
-    "severity": "major",
-    "warning": "Increased risk of bleeding..."
-  }
-]
 ```
 
 ### Документы
@@ -503,24 +607,19 @@ curl -X POST http://localhost:8000/api/v1/drugs/interactions \
 | POST | `/documents/medical-record` | Медкарта |
 | POST | `/documents/discharge-summary` | Эпикриз |
 
-**Пример: Рецепт**
+### Health check
+
 ```bash
-curl -X POST http://localhost:8000/api/v1/documents/prescription \
-  -H "Content-Type: application/json" \
-  -d '{
-    "patient_name": "Иванов Иван",
-    "medications": [
-      {"name": "Метформин", "dosage": "500мг", "frequency": "2 раза/сут", "route": "per os"}
-    ],
-    "diagnoses": ["Сахарный диабет 2 типа (E11)"]
-  }'
+# Работает без аутентификации
+curl http://localhost:8007/api/health
+# → {"status":"ok","service":"aibolit-portal"}
 ```
 
 ---
 
 ## 35 Специализаций врачей
 
-### Терапевтические специальности
+### Терапевтические
 
 | ID | Название | Ключевые навыки |
 |---|---|---|
@@ -537,7 +636,7 @@ curl -X POST http://localhost:8000/api/v1/documents/prescription \
 | `allergist` | Аллерголог-иммунолог | Аллергии, астма, иммунодефициты |
 | `geriatrician` | Гериатр | Пожилые пациенты, полипрагмазия, деменция |
 
-### Хирургические специальности
+### Хирургические
 
 | ID | Название | Ключевые навыки |
 |---|---|---|
@@ -579,68 +678,45 @@ curl -X POST http://localhost:8000/api/v1/documents/prescription \
 
 ## Примеры использования
 
-### Пример 1: Экстренная консультация
-
-**Сценарий:** Пациент жалуется на боль в груди и одышку.
+### Пример 1: Экстренная консультация (MCP)
 
 ```
 Пользователь: У меня острая боль в груди справа при вдохе, одышка, температура 38.5
 
 Claude:
-[clinic_reception(query="боль в груди при вдохе, одышка, температура")]
-→ Рекомендую пульмонолога (возможна пневмония) или кардиолога (исключить ТЭЛА)
+[clinic_reception → consult_doctor(specialty="pulmonologist")]
 
-[assess_vitals(heart_rate=110, respiratory_rate=22, temperature=38.5, spo2=93)]
-→ SpO₂ 93% — ⚠️ Требует немедленного внимания!
-  ЧДД 22/мин — учащённое
-  ЧСС 110 — тахикардия
-
-[consult_doctor(specialty="pulmonologist", complaints="боль в груди справа при дыхании, одышка, t=38.5")]
-→ Пульмонолог: По симптоматике — правосторонняя пневмония или плеврит.
-  SpO₂ 93% — показана оксигенотерапия.
-  Рекомендую: R-графия грудной клетки, ОАК с лейкоцитарной формулой, С-РБ.
-  При подтверждении — антибиотикотерапия амоксиклавом 875/125мг.
+Пульмонолог: По симптоматике — правосторонняя пневмония или плеврит.
+SpO2 93% — показана оксигенотерапия.
+Рекомендую: R-графия грудной клетки, ОАК с лейкоцитарной формулой, С-РБ.
 ```
 
-### Пример 2: Расшифровка анализов
-
-**Сценарий:** Пациент принёс результаты биохимии.
+### Пример 2: Расшифровка анализов (MCP)
 
 ```
 Пользователь: Расшифруй мои анализы:
   глюкоза 7.8 ммоль/л, HbA1c 7.1%, холестерин 6.4, ЛПВП 0.9
 
 Claude:
-[analyze_lab_results(results=[
-  {test: "glucose_fasting", value: 7.8},
-  {test: "hba1c", value: 7.1},
-  {test: "total_cholesterol", value: 6.4},
-  {test: "hdl", value: 0.9}
-], gender="male")]
+[analyze_lab_results(...)]
 
-→ ⚠️ Критические отклонения: HbA1c 7.1% — декомпенсация диабета
+⚠️ Критические отклонения: HbA1c 7.1% — декомпенсация диабета
 
-  Выявленные паттерны:
-  • Сахарный диабет 2 типа (плохо контролируемый — HbA1c >7%)
-  • Дислипидемия (холестерин >6.2, ЛПВП снижен)
-
-  Заключение: Требуется коррекция сахароснижающей терапии и назначение статина.
-
-[consult_doctor(specialty="endocrinologist", complaints="HbA1c 7.1%, глюкоза 7.8")]
-→ Эндокринолог: Рекомендую увеличить дозу метформина до 1000мг 2р/д.
-  Добавить аторвастатин 20мг на ночь.
+Выявленные паттерны:
+• Сахарный диабет 2 типа (плохо контролируемый — HbA1c >7%)
+• Дислипидемия (холестерин >6.2, ЛПВП снижен)
 ```
 
-### Пример 3: Работа с пациентом в веб-портале
+### Пример 3: Работа через веб-портал
 
-1. Откройте http://localhost:5173
-2. Перейдите в **Пациенты** → найдите нужного пациента
-3. На дашборде — обзор состояния, последние витальные, диагнозы
-4. **Анализы** → выберите показатель в выпадающем списке → смотрите тренд
+1. Откройте http://localhost (Docker) или http://localhost:5173 (локально)
+2. Зарегистрируйтесь → автоматически создастся медкарта
+3. На дашборде — обзор состояния, витальные, диагнозы
+4. **Анализы** → выберите показатель → смотрите тренд
 5. **Диагностика** → введите значения → получите интерпретацию
 6. **Документы** → заполните форму → скачайте готовый документ
 
-### Пример 4: Проверка лекарственного назначения
+### Пример 4: Проверка лекарственного назначения (MCP)
 
 ```
 Пользователь: Пациенту назначили варфарин + аспирин + омепразол. Безопасно?
@@ -648,16 +724,8 @@ Claude:
 Claude:
 [check_drug_interactions(drugs=["warfarin", "aspirin", "omeprazole"])]
 
-→ Обнаружено взаимодействие:
-  warfarin + aspirin: MAJOR — Повышенный риск кровотечения.
-  Совместный приём значительно увеличивает МНО.
-
-  omeprazole + warfarin: MODERATE — Омепразол может повышать уровень варфарина.
-  Мониторинг МНО обязателен.
-
-[drug_info(drug_name="warfarin")]
-→ Варфарин: требует регулярного контроля МНО (целевой 2.0–3.0).
-  При совместном назначении с аспирином — только при наличии чёткого показания.
+warfarin + aspirin: MAJOR — Повышенный риск кровотечения.
+omeprazole + warfarin: MODERATE — Мониторинг МНО обязателен.
 ```
 
 ---
@@ -665,48 +733,55 @@ Claude:
 ## Архитектура
 
 ```
-aibolit-clinic/
-├── src/                        # MCP-сервер
-│   ├── mcp_server.py           # Главная точка входа, 31 tool
+aibolit-claude/
+├── src/                           # MCP-сервер
+│   ├── mcp_server.py              # Главная точка входа, 31 tool
 │   ├── agents/
-│   │   ├── doctor.py           # Базовый класс врача
-│   │   └── specializations.py  # 35 специализаций
+│   │   ├── doctor.py              # Базовый класс врача
+│   │   └── specializations.py     # 35 специализаций
 │   ├── tools/
-│   │   ├── diagnostic.py       # CKD-EPI, SCORE2, анализ анализов
-│   │   └── documentation.py    # Генерация документов
+│   │   ├── diagnostic.py          # CKD-EPI, SCORE2, анализ анализов
+│   │   └── documentation.py       # Генерация документов
 │   ├── integrations/
-│   │   ├── pubmed.py           # PubMed + ClinicalTrials.gov
-│   │   ├── openfda.py          # FDA (препараты, FAERS, отзывы)
-│   │   ├── who_icd.py          # ICD-11
-│   │   └── medical_apis.py     # RxNorm, SNOMED, NCBI Gene, OMIM
+│   │   ├── pubmed.py              # PubMed + ClinicalTrials.gov
+│   │   ├── openfda.py             # FDA (препараты, FAERS, отзывы)
+│   │   ├── who_icd.py             # ICD-11
+│   │   └── medical_apis.py        # RxNorm, SNOMED, NCBI Gene, OMIM
 │   ├── models/
-│   │   ├── patient.py          # Датаклассы Patient, VitalSigns, ...
-│   │   └── medical_refs.py     # 67 показателей, нормы, МКБ-10
+│   │   ├── patient.py             # Датаклассы Patient, VitalSigns, ...
+│   │   └── medical_refs.py        # 67 показателей, нормы, МКБ-10
 │   └── utils/
-│       ├── database.py         # SQLite-бэкенд (11 таблиц)
-│       └── patient_db.py       # Обратная совместимость
+│       ├── database.py            # SQLite-бэкенд (11 таблиц, WAL)
+│       └── patient_db.py          # Обратная совместимость
 │
 ├── web/
-│   ├── backend/                # FastAPI
-│   │   ├── main.py             # App + 6 роутеров
-│   │   ├── config.py           # CORS
-│   │   ├── routers/            # patients, diagnostics, drugs, documents, ...
-│   │   └── schemas/            # Pydantic-модели
-│   └── frontend/               # React + Vite + Tailwind v3
+│   ├── backend/                   # FastAPI (порт 8007)
+│   │   ├── main.py                # App + 8 роутеров
+│   │   ├── config.py              # CORS, JWT-настройки
+│   │   ├── auth.py                # JWT-хелперы (hash, verify, token)
+│   │   ├── routers/               # auth, patients, diagnostics, drugs, ...
+│   │   └── schemas/               # Pydantic-модели
+│   └── frontend/                  # React + Vite + Tailwind v3
 │       └── src/
-│           ├── pages/          # 8 страниц
-│           ├── components/     # Layout, Charts, Patients, Shared
-│           ├── api/            # Axios-клиенты (5 модулей)
-│           └── types/          # TypeScript-интерфейсы
+│           ├── pages/             # LoginPage, DashboardPage, ...
+│           ├── components/        # Layout, Charts, Forms, Shared
+│           ├── contexts/          # AuthContext, ToastContext
+│           ├── hooks/             # React Query хуки
+│           ├── api/               # Axios-клиенты
+│           └── types/             # TypeScript-интерфейсы
+│
+├── nginx/
+│   └── nginx.conf                 # Конфиг для Docker (proxy + SPA)
 │
 ├── data/
-│   └── aibolit.db              # SQLite (создаётся автоматически)
+│   └── aibolit.db                 # SQLite (создаётся автоматически)
 │
-├── scripts/
-│   └── migrate_json_to_sqlite.py
-│
-└── config/
-    └── claude_mcp_config.json
+├── Dockerfile                     # Multi-stage (frontend-build → backend → nginx)
+├── docker-compose.yml             # 2 сервиса: backend + nginx
+├── .dockerignore
+├── run.py                         # Лаунчер MCP-сервера
+├── requirements.txt               # Python-зависимости
+└── pyproject.toml                 # Метаданные пакета
 ```
 
 ### База данных (SQLite, WAL-режим)
@@ -714,6 +789,7 @@ aibolit-clinic/
 | Таблица | Описание | Ключевые поля |
 |---|---|---|
 | `patients` | Основные данные | id, first_name, last_name, dob, gender, blood_type |
+| `users` | Аутентификация | id, username, password_hash, patient_id |
 | `allergies` | Аллергии | patient_id, substance, reaction, severity |
 | `medications` | Препараты | patient_id, name, dosage, frequency, route |
 | `diagnoses` | Диагнозы МКБ-10 | patient_id, icd10_code, name, status, confidence |
@@ -721,6 +797,7 @@ aibolit-clinic/
 | `vitals` | Витальные | patient_id, systolic_bp, heart_rate, spo2, ... |
 | `family_history` | Семейный анамнез | patient_id, condition |
 | `consultations` | История консультаций | patient_id, specialty, diagnosis, plan |
+| `documents` | Загруженные документы | patient_id, file_name, content |
 | `lifestyle` | Образ жизни | patient_id, key, value |
 | `genetic_markers` | Генетика | patient_id, gene, variant |
 
@@ -746,10 +823,17 @@ aibolit-clinic/
 
 ```bash
 # Бэкенд с авто-перезагрузкой
-python -m uvicorn web.backend.main:app --reload --port 8000
+python -m uvicorn web.backend.main:app --reload --port 8007
 
-# Фронтенд с HMR
+# Фронтенд с HMR (в другом терминале)
 cd web/frontend && npm run dev
+```
+
+### Тесты
+
+```bash
+# Frontend-тесты
+cd web/frontend && npm run test:run
 ```
 
 ### Добавление нового лабораторного показателя
@@ -766,7 +850,7 @@ cd web/frontend && npm run dev
 }
 ```
 
-2. Добавьте в список `COMMON_LABS` в `DiagnosticsPage.tsx`:
+2. Добавьте в `COMMON_LABS` в `DiagnosticsPage.tsx`:
 ```typescript
 { code: 'new_test', label: 'Новый показатель', unit: 'ммоль/л' }
 ```
@@ -794,29 +878,31 @@ app.include_router(new_router, prefix="/api/v1")
 ## FAQ
 
 **Q: Нужны ли API-ключи?**
-A: Нет. Все внешние API бесплатные и не требуют регистрации. OpenFDA ограничена 1000 запросами/день — для разработки достаточно.
+A: Нет. Все внешние API бесплатные и не требуют регистрации.
 
 **Q: Можно ли использовать для реальных пациентов?**
 A: Нет. Это учебно-демонстрационная система. См. [Отказ от ответственности](#отказ-от-ответственности).
 
 **Q: Почему препараты только на английском?**
-A: Базы OpenFDA и RxNorm содержат данные в международной номенклатуре (МНН — на английском). Используйте МНН: `metformin` (не метформин), `lisinopril` (не лизиноприл).
+A: Базы OpenFDA и RxNorm содержат данные в международной номенклатуре (МНН). Используйте: `metformin` (не метформин), `lisinopril` (не лизиноприл).
 
 **Q: Как добавить пациента?**
-A: Через MCP: `register_patient(first_name="Иван", last_name="Иванов", ...)`.
-Через API: `POST /api/v1/patients`. Форма регистрации в веб-портале — в разработке.
+A: Через веб-портал — регистрация на странице `/login`. Через MCP: `register_patient(...)`. Через API: `POST /api/v1/patients`.
 
 **Q: Где хранятся данные?**
-A: В `data/aibolit.db` (SQLite). Файл можно скопировать для резервной копии.
+A: Локальная установка: `data/aibolit.db` (SQLite). Docker: именованный том `aibolit-data`.
 
-**Q: Как настроить под свою конфигурацию?**
-A: CORS и порты — в `web/backend/config.py`. Tailwind-тема — в `web/frontend/tailwind.config.js`.
+**Q: Какой порт у бэкенда?**
+A: 8007. В Docker nginx слушает порт 80 (настраивается через `PORT`) и проксирует `/api/` на бэкенд.
+
+**Q: Как сделать бэкап базы?**
+A: Локально: скопируйте `data/aibolit.db`. Docker: `docker compose cp backend:/app/data/aibolit.db ./backup.db`.
 
 ---
 
 ## Отказ от ответственности
 
-> ⚠️ **Aibolit — информационная и демонстрационная система.**
+> **Aibolit — информационная и демонстрационная система.**
 >
 > - **НЕ является медицинским устройством** и не предназначена для диагностики или лечения
 > - **НЕ заменяет** консультацию квалифицированного врача
@@ -826,4 +912,4 @@ A: CORS и порты — в `web/backend/config.py`. Tailwind-тема — в `
 
 ---
 
-*Сделано с ❤️ на Python + FastAPI + React + Claude*
+*Python + FastAPI + React + Claude MCP*

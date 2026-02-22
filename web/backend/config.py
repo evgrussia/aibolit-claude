@@ -12,4 +12,8 @@ CORS_ORIGINS = [
     "http://127.0.0.1:5173",
     "http://localhost",
     "http://127.0.0.1",
+    "https://aibolit-ai.ru",
+    "https://api.aibolit-ai.ru",
+    "http://aibolit-ai.ru",
+    "http://api.aibolit-ai.ru",
 ]
