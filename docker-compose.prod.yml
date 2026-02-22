@@ -4,10 +4,12 @@ services:
       context: .
       target: backend
     volumes:
-      - aibolit-data:/app/data
+      - aibolit-claude-data:/app/data
     environment:
-      - AIBOLIT_SECRET_KEY=${AIBOLIT_SECRET_KEY:-aibolit-secret-key-change-in-production}
+      - AIBOLIT_SECRET_KEY=${AIBOLIT_SECRET_KEY}
     restart: unless-stopped
+    ports:
+      - "127.0.0.1:8101:8007"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8007/api/health')"]
       interval: 30s
@@ -19,7 +21,7 @@ services:
       context: .
       target: nginx
     ports:
-      - "${PORT:-80}:80"
+      - "127.0.0.1:8102:80"
     depends_on:
       backend:
         condition: service_healthy
@@ -30,9 +32,9 @@ services:
       context: .
       target: mcp
     ports:
-      - "8103:8103"
+      - "127.0.0.1:8103:8103"
     volumes:
-      - aibolit-data:/app/data
+      - aibolit-claude-data:/app/data
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8103/health')"]
@@ -41,4 +43,4 @@ services:
       retries: 3
 
 volumes:
-  aibolit-data:
+  aibolit-claude-data:
