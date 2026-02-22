@@ -1,0 +1,3 @@
+export { COMMON_LABS, VITALS_FIELDS, CKD_COLORS, CKD_STAGES, VITALS_THRESHOLDS } from './medical.ts';
+export { DRUG_EXAMPLES, CRITICAL_PAIRS } from './drugs.ts';
+export { ROUTES, FREQUENCIES, SPECIALTIES_RU, URGENCY_LABELS, URGENCY_HINTS } from './documents.ts';

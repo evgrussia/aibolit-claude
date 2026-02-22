@@ -39,8 +39,16 @@ from .integrations.medical_apis import (
     get_gene_info, search_omim, search_open_targets,
 )
 from .models.medical_refs import LAB_REFERENCE_RANGES, ICD10_COMMON, interpret_lab_value
-from .utils.patient_db import (
+from .utils.database import (
     save_patient, load_patient, list_patients, delete_patient,
+    add_vitals as db_add_vitals,
+    add_lab_result as db_add_lab_result,
+    add_diagnosis as db_add_diagnosis,
+    add_medication as db_add_medication,
+    save_consultation, get_consultation_history,
+    get_lab_trends, get_vitals_trends,
+    search_patients, get_patients_by_diagnosis,
+    init_db,
 )
 from .models.patient import (
     Patient, VitalSigns, Allergy, Medication, LabResult, Diagnosis, Gender, BloodType,
@@ -549,6 +557,67 @@ async def list_tools() -> list[Tool]:
             },
         ),
 
+        # ── History & Analytics ──
+        Tool(
+            name="get_consultation_history",
+            description="Получить историю консультаций пациента или по специализации врача.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "patient_id": {"type": "string", "description": "ID пациента (опционально)"},
+                    "specialty": {"type": "string", "description": "ID специализации (опционально)"},
+                    "limit": {"type": "integer", "default": 20},
+                },
+            },
+        ),
+        Tool(
+            name="get_lab_trends",
+            description="Получить динамику лабораторного показателя пациента за всё время.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "patient_id": {"type": "string"},
+                    "test_name": {"type": "string", "description": "Название теста (или часть)"},
+                    "limit": {"type": "integer", "default": 20},
+                },
+                "required": ["patient_id", "test_name"],
+            },
+        ),
+        Tool(
+            name="get_vitals_history",
+            description="Получить историю витальных показателей пациента.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "patient_id": {"type": "string"},
+                    "limit": {"type": "integer", "default": 20},
+                },
+                "required": ["patient_id"],
+            },
+        ),
+        Tool(
+            name="search_patients",
+            description="Поиск пациентов по имени или фамилии.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Строка поиска (часть имени/фамилии)"},
+                },
+                "required": ["query"],
+            },
+        ),
+        Tool(
+            name="get_patients_by_diagnosis",
+            description="Найти пациентов по коду МКБ-10 (диагнозу).",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "icd10_prefix": {"type": "string", "description": "Начало кода МКБ-10 (напр. I10, E11, J45)"},
+                },
+                "required": ["icd10_prefix"],
+            },
+        ),
+
         # ── Lab Reference ──
         Tool(
             name="lab_reference_ranges",
@@ -703,6 +772,26 @@ async def _dispatch(name: str, args: dict) -> Any:
     elif name == "add_medication":
         return _handle_add_medication(args)
 
+    # ── History & Analytics ──
+    elif name == "get_consultation_history":
+        return get_consultation_history(
+            patient_id=args.get("patient_id"),
+            specialty=args.get("specialty"),
+            limit=args.get("limit", 20),
+        )
+
+    elif name == "get_lab_trends":
+        return get_lab_trends(args["patient_id"], args["test_name"], args.get("limit", 20))
+
+    elif name == "get_vitals_history":
+        return get_vitals_trends(args["patient_id"], args.get("limit", 20))
+
+    elif name == "search_patients":
+        return search_patients(args["query"])
+
+    elif name == "get_patients_by_diagnosis":
+        return get_patients_by_diagnosis(args["icd10_prefix"])
+
     elif name == "lab_reference_ranges":
         return _handle_lab_reference(args["test_name"])
 
@@ -824,7 +913,7 @@ def _handle_consultation(specialty: str, complaints: str, patient_id: str | None
         if patient:
             patient_summary = patient.summary()
 
-    return {
+    result = {
         "doctor": {
             "specialty_id": spec.id,
             "name": f"AI-{spec.name_ru}",
@@ -851,6 +940,16 @@ def _handle_consultation(specialty: str, complaints: str, patient_id: str | None
         ),
         "disclaimer": "AI-консультация не заменяет визит к реальному врачу.",
     }
+
+    # Persist consultation to database
+    save_consultation(
+        specialty=specialty,
+        complaints=complaints,
+        response=result,
+        patient_id=patient_id,
+    )
+
+    return result
 
 
 def _handle_register_patient(args: dict) -> dict:
@@ -889,9 +988,6 @@ def _handle_get_patient(patient_id: str) -> dict:
 
 
 def _handle_add_vitals(args: dict) -> dict:
-    patient = load_patient(args["patient_id"])
-    if not patient:
-        return {"error": "Пациент не найден"}
     v = VitalSigns(
         systolic_bp=args.get("systolic_bp"),
         diastolic_bp=args.get("diastolic_bp"),
@@ -903,46 +999,43 @@ def _handle_add_vitals(args: dict) -> dict:
         height=args.get("height"),
         blood_glucose=args.get("blood_glucose"),
     )
-    patient.vitals_history.append(v)
-    save_patient(patient)
+    try:
+        db_add_vitals(args["patient_id"], v)
+    except ValueError:
+        return {"error": "Пациент не найден"}
     alerts = v.assess()
     return {"status": "saved", "alerts": alerts, "bmi": v.bmi()}
 
 
 def _handle_add_lab_result(args: dict) -> dict:
-    patient = load_patient(args["patient_id"])
-    if not patient:
-        return {"error": "Пациент не найден"}
     lr = LabResult(
         test_name=args["test_name"],
         value=args["value"],
         unit=args.get("unit", ""),
         reference_range=args.get("reference_range", ""),
     )
-    patient.lab_results.append(lr)
-    save_patient(patient)
+    try:
+        db_add_lab_result(args["patient_id"], lr)
+    except ValueError:
+        return {"error": "Пациент не найден"}
     return {"status": "saved", "test": lr.test_name, "value": lr.value}
 
 
 def _handle_add_diagnosis(args: dict) -> dict:
-    patient = load_patient(args["patient_id"])
-    if not patient:
-        return {"error": "Пациент не найден"}
     diag = Diagnosis(
         icd10_code=args["icd10_code"],
         name=args["name"],
         status=args.get("status", "active"),
         confidence=args.get("confidence", 0.0),
     )
-    patient.diagnoses.append(diag)
-    save_patient(patient)
+    try:
+        db_add_diagnosis(args["patient_id"], diag)
+    except ValueError:
+        return {"error": "Пациент не найден"}
     return {"status": "saved", "diagnosis": diag.name, "code": diag.icd10_code}
 
 
 def _handle_add_medication(args: dict) -> dict:
-    patient = load_patient(args["patient_id"])
-    if not patient:
-        return {"error": "Пациент не найден"}
     med = Medication(
         name=args["name"],
         dosage=args["dosage"],
@@ -950,8 +1043,10 @@ def _handle_add_medication(args: dict) -> dict:
         route=args.get("route", "oral"),
         notes=args.get("notes", ""),
     )
-    patient.medications.append(med)
-    save_patient(patient)
+    try:
+        db_add_medication(args["patient_id"], med)
+    except ValueError:
+        return {"error": "Пациент не найден"}
     return {"status": "saved", "medication": med.name}
 
 
@@ -972,6 +1067,7 @@ def _handle_lab_reference(test_name: str) -> dict:
 # ══════════════════════════════════════════════════════════════════
 
 async def run():
+    init_db()
     async with stdio_server() as (read_stream, write_stream):
         await app.run(read_stream, write_stream, app.create_initialization_options())
 

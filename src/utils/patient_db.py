@@ -1,4 +1,9 @@
-"""Patient database - JSON-based storage for patient records."""
+"""Patient database — backward-compatible wrapper.
+
+Delegates all CRUD operations to the SQLite-backed database module.
+Retains JSON serialization helpers (_dict_to_patient, _patient_to_dict)
+for use by the migration script.
+"""
 import json
 import os
 from datetime import date, datetime
@@ -8,12 +13,20 @@ from ..models.patient import (
     Patient, VitalSigns, Allergy, Medication, LabResult, Diagnosis, Gender, BloodType
 )
 
+# ── Re-export public API from database module ────────────────
+from .database import (           # noqa: F401
+    save_patient,
+    load_patient,
+    list_patients,
+    delete_patient,
+    init_db,
+)
+
+# ── Legacy data directory (used by migration) ────────────────
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data", "patients")
 
 
-def _ensure_dir():
-    os.makedirs(DATA_DIR, exist_ok=True)
-
+# ── JSON encoder (kept for any external users) ───────────────
 
 class DateEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -23,6 +36,8 @@ class DateEncoder(json.JSONEncoder):
             return obj.value
         return super().default(obj)
 
+
+# ── Serialization helpers (used by migration) ────────────────
 
 def _patient_to_dict(p: Patient) -> dict:
     """Serialize patient to dict."""
@@ -127,44 +142,3 @@ def _dict_to_patient(d: dict) -> Patient:
         genetic_markers=d.get("genetic_markers", {}),
         notes=d.get("notes", ""),
     )
-
-
-def save_patient(patient: Patient) -> str:
-    _ensure_dir()
-    path = os.path.join(DATA_DIR, f"{patient.id}.json")
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(_patient_to_dict(patient), f, ensure_ascii=False, indent=2, cls=DateEncoder)
-    return path
-
-
-def load_patient(patient_id: str) -> Patient | None:
-    path = os.path.join(DATA_DIR, f"{patient_id}.json")
-    if not os.path.exists(path):
-        return None
-    with open(path, "r", encoding="utf-8") as f:
-        return _dict_to_patient(json.load(f))
-
-
-def list_patients() -> list[dict[str, str]]:
-    _ensure_dir()
-    patients = []
-    for fname in os.listdir(DATA_DIR):
-        if fname.endswith(".json"):
-            path = os.path.join(DATA_DIR, fname)
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                patients.append({
-                    "id": data["id"],
-                    "name": f"{data['last_name']} {data['first_name']}",
-                    "dob": data["date_of_birth"],
-                    "gender": data["gender"],
-                })
-    return patients
-
-
-def delete_patient(patient_id: str) -> bool:
-    path = os.path.join(DATA_DIR, f"{patient_id}.json")
-    if os.path.exists(path):
-        os.remove(path)
-        return True
-    return False
