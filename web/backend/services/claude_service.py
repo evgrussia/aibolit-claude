@@ -1,29 +1,23 @@
-"""Service for calling Claude Code CLI to generate AI consultations."""
+"""Service for calling Claude Code CLI to generate AI consultations.
+
+Calls `claude --print` without MCP — all patient/specialization context
+is pre-fetched by the backend and passed directly in the prompt.
+"""
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import os
 import shutil
 
 logger = logging.getLogger("aibolit.claude_service")
 
-# Path to MCP config inside Docker container
-_MCP_CONFIG = os.environ.get(
-    "CLAUDE_MCP_CONFIG",
-    "/app/config/claude_code_docker.json",
-)
-
 # Max time (seconds) to wait for Claude response
 _TIMEOUT = int(os.environ.get("CLAUDE_TIMEOUT", "120"))
 
-# Max agentic turns (limits MCP tool-call rounds and cost)
-_MAX_TURNS = int(os.environ.get("CLAUDE_MAX_TURNS", "3"))
-
 
 def is_available() -> bool:
-    """Check if claude CLI is installed."""
+    """Check if claude CLI is installed and authenticated."""
     return shutil.which("claude") is not None
 
 
@@ -47,12 +41,10 @@ async def generate_consultation(
             "claude",
             "--print",
             "--output-format", "text",
-            "--max-turns", str(_MAX_TURNS),
-            "--mcp-config", _MCP_CONFIG,
+            "--max-turns", "1",
             prompt,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
-            env={**os.environ, "CLAUDE_CODE_DISABLE_NONESSENTIAL": "1"},
         )
         stdout, stderr = await asyncio.wait_for(
             proc.communicate(),
@@ -60,7 +52,8 @@ async def generate_consultation(
         )
 
         if proc.returncode != 0:
-            logger.error("Claude CLI failed (rc=%s): %s", proc.returncode, stderr.decode()[:500])
+            err = stderr.decode()[:500]
+            logger.error("Claude CLI failed (rc=%s): %s", proc.returncode, err)
             return None
 
         text = stdout.decode().strip()
@@ -72,8 +65,10 @@ async def generate_consultation(
 
     except asyncio.TimeoutError:
         logger.error("Claude CLI timed out after %ss", _TIMEOUT)
-        if proc:
+        try:
             proc.kill()
+        except Exception:
+            pass
         return None
     except Exception:
         logger.exception("Claude CLI unexpected error")
@@ -81,26 +76,25 @@ async def generate_consultation(
 
 
 def _build_prompt(specialty_name: str, complaints: str, patient_context: str) -> str:
-    """Build the system prompt for Claude."""
+    """Build a rich prompt with all context pre-fetched."""
     parts = [
         f"Ты — AI-{specialty_name} в виртуальной клинике Aibolit.",
-        f"Пациент обратился с жалобами: {complaints}",
+        f"\nПациент обратился с жалобами: {complaints}",
     ]
 
     if patient_context and patient_context != "Карта пациента не загружена":
-        parts.append(f"\nДанные пациента:\n{patient_context}")
+        parts.append(f"\nДанные из медицинской карты пациента:\n{patient_context}")
 
     parts.append("""
-Проведи полноценную медицинскую консультацию:
+Проведи полноценную медицинскую консультацию. Структурируй ответ:
 
-1. Проанализируй жалобы с точки зрения своей специализации
-2. Если есть ID пациента — загрузи его карту (get_patient) и учти анамнез, диагнозы, лекарства
-3. Предложи дифференциальный диагноз с кодами МКБ-10
-4. Рекомендуй конкретные обследования и анализы
-5. Дай рекомендации по лечению (препараты, дозировки, немедикаментозные меры)
-6. Укажи, когда необходимо срочно обратиться к врачу
+1. **Оценка жалоб** — проанализируй симптомы с точки зрения своей специализации
+2. **Дифференциальный диагноз** — предложи возможные диагнозы с кодами МКБ-10
+3. **Рекомендуемые обследования** — конкретные анализы и исследования
+4. **Рекомендации по лечению** — препараты, дозировки, немедикаментозные меры
+5. **Красные флаги** — когда необходимо срочно обратиться к врачу
 
-Отвечай на русском языке. Будь конкретен, структурируй ответ.
-⚠️ В конце обязательно напомни: все рекомендации носят информационный характер и не заменяют очную консультацию врача.""")
+Отвечай на русском языке. Будь конкретен и профессионален.
+В конце напомни: все рекомендации носят информационный характер и не заменяют очную консультацию врача.""")
 
     return "\n".join(parts)
