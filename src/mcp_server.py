@@ -33,7 +33,7 @@ from .tools.documentation import (
 )
 from .integrations.pubmed import search_pubmed, fetch_abstract, search_clinical_trials
 from .integrations.openfda import search_drug, get_adverse_events, check_drug_recall
-from .integrations.who_icd import search_icd11, get_disease_info
+from .integrations.who_icd import search_icd11
 from .integrations.medical_apis import (
     search_rxnorm, check_drug_interactions, search_snomed,
     get_gene_info, search_omim, search_open_targets,
