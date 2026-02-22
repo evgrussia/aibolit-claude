@@ -7,6 +7,10 @@ services:
       - aibolit-claude-data:/app/data
     environment:
       - AIBOLIT_SECRET_KEY=${AIBOLIT_SECRET_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    depends_on:
+      mcp:
+        condition: service_healthy
     restart: unless-stopped
     ports:
       - "127.0.0.1:8101:8007"

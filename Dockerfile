@@ -20,9 +20,12 @@ FROM python:3.11-slim AS backend
 
 WORKDIR /app
 
-# Install system deps for C extensions, then clean up
+# Install system deps + Node.js for Claude Code CLI
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends gcc && \
+    apt-get install -y --no-install-recommends gcc curl && \
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y --no-install-recommends nodejs && \
+    npm install -g @anthropic-ai/claude-code && \
     rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
@@ -34,6 +37,7 @@ RUN pip install --no-cache-dir -r requirements.txt fastapi uvicorn[standard] pyt
 COPY pyproject.toml ./
 COPY src/ ./src/
 COPY web/backend/ ./web/backend/
+COPY config/ ./config/
 
 # Create data directory for SQLite
 RUN mkdir -p /app/data

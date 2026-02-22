@@ -126,10 +126,10 @@ export default function ConsultDoctorPage() {
             {mutation.isPending ? (
               <>
                 <Loader2 size={16} className="animate-spin" />
-                Идёт консультация...
+                AI анализирует жалобы...
               </>
             ) : (
-              'Начать консультацию'
+              'Начать AI консультацию'
             )}
           </button>
         </div>

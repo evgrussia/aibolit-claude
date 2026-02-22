@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "aibolit-clinic": {
+      "url": "http://mcp:8103/mcp/"
+    }
+  }
+}

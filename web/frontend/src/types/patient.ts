@@ -124,6 +124,7 @@ export interface ConsultationResult {
   };
   instructions: string;
   disclaimer: string;
+  ai_generated?: boolean;
 }
 
 export interface IcdResult {
