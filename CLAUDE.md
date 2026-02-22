@@ -64,6 +64,13 @@
 - `add_medication` — Назначить лекарство
 - `lab_reference_ranges` — Справочник норм
 
+#### История и аналитика
+- `get_consultation_history` — История консультаций (по пациенту/специальности)
+- `get_lab_trends` — Динамика лабораторного показателя за всё время
+- `get_vitals_history` — История витальных показателей
+- `search_patients` — Поиск пациентов по имени/фамилии
+- `get_patients_by_diagnosis` — Поиск пациентов по коду МКБ-10
+
 ## 35 Специализаций врачей
 
 | # | Специализация | ID |
@@ -138,12 +145,36 @@ aibolit-clinic/
 │   │   ├── patient.py         # Модели данных пациентов
 │   │   └── medical_refs.py    # Референсные значения, МКБ-10, взаимодействия
 │   └── utils/
-│       └── patient_db.py      # JSON-хранилище пациентов
+│       ├── database.py        # SQLite-бэкенд (основное хранилище)
+│       └── patient_db.py      # Обратная совместимость (делегирует в database.py)
+├── scripts/
+│   └── migrate_json_to_sqlite.py  # Ручная миграция из JSON в SQLite
 ├── config/
 │   └── claude_mcp_config.json # Конфигурация MCP для Claude
 └── data/
-    └── patients/              # Данные пациентов (JSON)
+    ├── aibolit.db             # SQLite база данных (создаётся автоматически)
+    └── patients/              # Архив JSON-файлов (миграция при первом запуске)
 ```
+
+### База данных (SQLite)
+
+Данные хранятся в `data/aibolit.db` — нормализованная реляционная схема:
+
+| Таблица | Описание |
+|---------|----------|
+| `patients` | Основные данные пациента |
+| `allergies` | Аллергии |
+| `medications` | Назначенные препараты |
+| `diagnoses` | Диагнозы (МКБ-10) |
+| `lab_results` | Результаты анализов |
+| `vitals` | Витальные показатели |
+| `family_history` | Семейный анамнез |
+| `surgical_history` | Хирургический анамнез |
+| `lifestyle` | Образ жизни (key-value) |
+| `genetic_markers` | Генетические маркеры |
+| `consultations` | История консультаций AI-врачей |
+
+При первом запуске JSON-файлы из `data/patients/` автоматически мигрируются в SQLite.
 
 ## Disclaimer / Отказ от ответственности
 
