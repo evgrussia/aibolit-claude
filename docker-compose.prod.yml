@@ -7,7 +7,7 @@ services:
       - aibolit-claude-data:/app/data
     environment:
       - AIBOLIT_SECRET_KEY=${AIBOLIT_SECRET_KEY}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - CLAUDE_CODE_OAUTH_TOKEN=${CLAUDE_CODE_OAUTH_TOKEN}
     depends_on:
       mcp:
         condition: service_healthy
