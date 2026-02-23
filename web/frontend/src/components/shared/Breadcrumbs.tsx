@@ -7,6 +7,7 @@ const ROUTE_LABELS: Record<string, string> = {
   vitals: 'Витальные',
   consultations: 'Консультации',
   consult: 'AI Консультация',
+  chat: 'Чат с врачом',
   timeline: 'Хронология',
   diagnoses: 'Диагнозы',
   diagnostics: 'Диагностика',

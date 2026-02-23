@@ -1,42 +1,41 @@
 import { useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { MessageSquare, ArrowLeft, Sparkles } from 'lucide-react';
 import { useSpecializations } from '../hooks/useSpecializations';
-import { useStartConsultation } from '../hooks/useConsultation';
 import { useAuth } from '../contexts/AuthContext';
 import { triageComplaints, type TriageResult } from '../api/consultations';
+import { createChat } from '../api/chat';
+import type { ChatSSEHandler } from '../api/chat';
 import SpecialtyGrid from '../components/consult/SpecialtyGrid';
 import TriageResultComponent from '../components/consult/TriageResult';
-import ConsultationResultCard from '../components/consult/ConsultationResultCard';
 import ConsultationLoading from '../components/consult/ConsultationLoading';
 import LoadingSpinner from '../components/shared/LoadingSpinner';
 import ApiError from '../components/shared/ApiError';
 import { useToast } from '../contexts/ToastContext';
-import type { Specialization, ConsultationResult } from '../types/patient';
+import type { Specialization } from '../types/patient';
 
-type Step = 'complaint' | 'triage' | 'specialty' | 'loading' | 'result';
+type Step = 'complaint' | 'triage' | 'specialty' | 'loading';
 
 const STEP_LABELS: Record<Step, string> = {
   complaint: 'Жалобы',
   triage: 'Рекомендации',
   specialty: 'Специалист',
-  loading: 'Анализ',
-  result: 'Результат',
+  loading: 'Создание чата',
 };
 
-const STEP_ORDER: Step[] = ['complaint', 'triage', 'specialty', 'loading', 'result'];
+const STEP_ORDER: Step[] = ['complaint', 'triage', 'specialty', 'loading'];
 
 export default function ConsultDoctorPage() {
   const [step, setStep] = useState<Step>('complaint');
   const [complaints, setComplaints] = useState('');
   const [triageResult, setTriageResult] = useState<TriageResult | null>(null);
   const [selected, setSelected] = useState<Specialization | null>(null);
-  const [result, setResult] = useState<ConsultationResult | null>(null);
   const [triageLoading, setTriageLoading] = useState(false);
 
   const { data: specializations = [], isLoading, error, refetch } = useSpecializations();
-  const mutation = useStartConsultation();
-  const { patientId } = useAuth();
+  useAuth();
   const toast = useToast();
+  const navigate = useNavigate();
 
   const handleTriage = useCallback(async () => {
     if (!complaints.trim()) return;
@@ -52,62 +51,67 @@ export default function ConsultDoctorPage() {
     }
   }, [complaints, toast]);
 
+  const startChat = useCallback(async (spec: Specialization) => {
+    setStep('loading');
+    try {
+      let consultationId: number | null = null;
+      const handlers: ChatSSEHandler = {
+        onMeta: (data) => {
+          if (data.consultation_id) consultationId = data.consultation_id;
+        },
+      };
+      // Create chat — this starts streaming, but we just need the consultation_id
+      // then redirect. The chat page will pick up from there.
+      const ac = new AbortController();
+      const promise = createChat(spec.id, complaints.trim(), handlers, ac.signal);
+      // Wait a bit for meta event with consultation_id, then abort and redirect
+      const timeout = setTimeout(() => {
+        if (consultationId) {
+          ac.abort();
+          navigate(`/chat/${consultationId}`, { replace: true });
+        }
+      }, 2000);
+
+      await promise.catch(() => {});
+      clearTimeout(timeout);
+
+      // If we got the consultation_id (stream completed or was aborted), navigate
+      if (consultationId) {
+        navigate(`/chat/${consultationId}`, { replace: true });
+      } else {
+        toast.error('Не удалось создать чат');
+        setStep(triageResult ? 'triage' : 'complaint');
+      }
+    } catch (err) {
+      const msg = (err as Error).message || '';
+      toast.error(msg || 'Ошибка при создании чата');
+      setStep(triageResult ? 'triage' : 'complaint');
+    }
+  }, [complaints, triageResult, toast, navigate]);
+
   const handleSelectFromTriage = useCallback((specialtyId: string) => {
     const spec = specializations.find(s => s.id === specialtyId);
     if (spec) {
       setSelected(spec);
-      startConsultation(spec);
+      startChat(spec);
     }
-  }, [specializations]);
+  }, [specializations, startChat]);
 
   const handleSelectSpecialty = useCallback((spec: Specialization) => {
     setSelected(spec);
-    startConsultation(spec);
-  }, []);
-
-  const startConsultation = async (spec: Specialization) => {
-    setStep('loading');
-    try {
-      const res = await mutation.mutateAsync({
-        specialty: spec.id,
-        complaints: complaints.trim(),
-        patientId: patientId || undefined,
-      });
-      setResult(res);
-      setStep('result');
-      toast.success('Консультация проведена');
-    } catch (err) {
-      const msg = (err as Error).message || '';
-      const isTimeout = msg.includes('timeout') || msg.includes('ECONNABORTED') || msg.includes('Network Error');
-      toast.error(
-        isTimeout
-          ? 'AI-консультация заняла слишком много времени. Попробуйте ещё раз или выберите другого специалиста.'
-          : msg || 'Ошибка при создании консультации'
-      );
-      setStep(triageResult ? 'triage' : 'complaint');
-    }
-  };
-
-  const handleReset = () => {
-    setStep('complaint');
-    setComplaints('');
-    setTriageResult(null);
-    setSelected(null);
-    setResult(null);
-  };
+    startChat(spec);
+  }, [startChat]);
 
   const handleBack = () => {
-    const currentIdx = STEP_ORDER.indexOf(step);
     if (step === 'specialty') setStep('triage');
     else if (step === 'triage') setStep('complaint');
-    else if (currentIdx > 0 && step !== 'loading') setStep(STEP_ORDER[currentIdx - 1]);
   };
 
   if (isLoading) return <LoadingSpinner />;
   if (error) return <ApiError message={(error as Error).message} onRetry={() => refetch()} />;
 
   const stepIdx = STEP_ORDER.indexOf(step);
-  const visibleSteps: Step[] = ['complaint', 'triage', 'specialty', 'result'];
+  const visibleSteps: Step[] = ['complaint', 'triage', 'specialty', 'loading'];
 
   return (
     <div className="space-y-6">
@@ -126,7 +130,7 @@ export default function ConsultDoctorPage() {
       {/* Step indicators */}
       <div className="flex items-center gap-2 text-sm">
         {visibleSteps.map((s, i) => {
-          const isActive = s === step || (step === 'loading' && s === 'result');
+          const isActive = s === step;
           const isPast = stepIdx > STEP_ORDER.indexOf(s);
           return (
             <div key={s} className="flex items-center gap-2">
@@ -222,22 +226,9 @@ export default function ConsultDoctorPage() {
         <SpecialtyGrid specializations={specializations} onSelect={handleSelectSpecialty} />
       )}
 
-      {/* Loading: AI is processing */}
+      {/* Loading: Creating chat */}
       {step === 'loading' && selected && (
         <ConsultationLoading specialtyName={selected.name_ru} />
-      )}
-
-      {/* Step 4: Result */}
-      {step === 'result' && result && (
-        <div className="space-y-4">
-          <ConsultationResultCard result={result} />
-          <button
-            onClick={handleReset}
-            className="px-4 py-2 text-sm text-medical-teal hover:bg-medical-teal/5 rounded-lg transition-colors"
-          >
-            Новая консультация
-          </button>
-        </div>
       )}
     </div>
   );

@@ -20,7 +20,7 @@ from fastapi.responses import JSONResponse
 
 from src.utils.database import init_db
 from .config import CORS_ORIGINS
-from .routers import auth, patients, consultations, diagnostics, drugs, documents, reference, knowledge
+from .routers import auth, patients, consultations, diagnostics, drugs, documents, reference, knowledge, chat
 
 # ── Logging setup ──────────────────────────────────────────
 logging.basicConfig(
@@ -83,6 +83,7 @@ app.include_router(drugs.router, prefix="/api/v1")
 app.include_router(documents.router, prefix="/api/v1")
 app.include_router(reference.router, prefix="/api/v1")
 app.include_router(knowledge.router, prefix="/api/v1")
+app.include_router(chat.router, prefix="/api/v1")
 
 
 @app.get("/api/health")

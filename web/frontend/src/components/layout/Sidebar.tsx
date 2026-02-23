@@ -2,7 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, FlaskConical, HeartPulse,
   Stethoscope, Activity, Pill, FileText, Heart,
-  MessageSquare, Clock, LogOut, X, User, Settings,
+  MessageSquare, MessageCircle, Clock, LogOut, X, User, Settings,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuth } from '../../contexts/AuthContext';
@@ -84,6 +84,9 @@ export default function Sidebar({ onClose }: SidebarProps) {
         <p className="px-4 pt-4 text-xs font-semibold text-blue-300 uppercase tracking-wider mb-2">
           Инструменты
         </p>
+        <NavLink to="/chat" className={navClass} onClick={handleNavClick}>
+          <MessageCircle size={18} /> Чат с врачом
+        </NavLink>
         <NavLink to="/consult" className={navClass} onClick={handleNavClick}>
           <MessageSquare size={18} /> AI Консультация
         </NavLink>

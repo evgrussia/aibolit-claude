@@ -225,6 +225,51 @@ def close_db() -> None:
         _local.conn = None
 
 
+def _run_migrations(conn: sqlite3.Connection) -> None:
+    """Apply incremental schema migrations based on schema_version."""
+    row = conn.execute("SELECT MAX(version) FROM schema_version").fetchone()
+    current_version = row[0] if row[0] is not None else 0
+
+    if current_version < 2:
+        # Migration v2: chat support — add columns to consultations + new tables
+        # Check existing columns to avoid duplicate ALTER TABLE
+        cols = {r[1] for r in conn.execute("PRAGMA table_info(consultations)").fetchall()}
+        if "status" not in cols:
+            conn.execute("ALTER TABLE consultations ADD COLUMN status TEXT NOT NULL DEFAULT 'legacy'")
+        if "title" not in cols:
+            conn.execute("ALTER TABLE consultations ADD COLUMN title TEXT NOT NULL DEFAULT ''")
+        if "session_id" not in cols:
+            conn.execute("ALTER TABLE consultations ADD COLUMN session_id TEXT")
+
+        conn.executescript("""
+            CREATE TABLE IF NOT EXISTS chat_messages (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                consultation_id INTEGER NOT NULL REFERENCES consultations(id) ON DELETE CASCADE,
+                role            TEXT NOT NULL CHECK(role IN ('user','assistant','system')),
+                content         TEXT NOT NULL,
+                metadata        TEXT NOT NULL DEFAULT '{}',
+                created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_chat_msg_consult ON chat_messages(consultation_id);
+
+            CREATE TABLE IF NOT EXISTS chat_attachments (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                consultation_id INTEGER NOT NULL REFERENCES consultations(id) ON DELETE CASCADE,
+                message_id      INTEGER REFERENCES chat_messages(id) ON DELETE SET NULL,
+                file_name       TEXT NOT NULL,
+                file_type       TEXT NOT NULL,
+                file_size       INTEGER NOT NULL,
+                file_path       TEXT NOT NULL,
+                created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_chat_att_consult ON chat_attachments(consultation_id);
+        """)
+
+        conn.execute("INSERT OR IGNORE INTO schema_version (version) VALUES (2)")
+        conn.commit()
+        print("[Aibolit] Applied migration v2: chat tables", file=sys.stderr)
+
+
 def init_db() -> None:
     """Create all tables if they don't exist. Auto-migrates JSON data on first run."""
     conn = get_connection()
@@ -235,6 +280,9 @@ def init_db() -> None:
     if row[0] == 0:
         conn.execute("INSERT INTO schema_version (version) VALUES (1)")
         conn.commit()
+
+    # Run incremental migrations
+    _run_migrations(conn)
 
     # Auto-migrate from JSON if database is empty
     count = conn.execute("SELECT COUNT(*) FROM patients").fetchone()[0]
@@ -1035,3 +1083,153 @@ def delete_document(doc_id: int) -> bool:
     with conn:
         cursor = conn.execute("DELETE FROM documents WHERE id = ?", (doc_id,))
     return cursor.rowcount > 0
+
+
+# ══════════════════════════════════════════════════════════════
+# Chat consultations
+# ══════════════════════════════════════════════════════════════
+
+def create_chat_consultation(
+    patient_id: str | None,
+    specialty: str,
+    complaints: str,
+    session_id: str,
+    title: str = "",
+) -> int:
+    """Create a new chat-style consultation. Returns consultation ID."""
+    conn = get_connection()
+    with conn:
+        cursor = conn.execute(
+            """INSERT INTO consultations
+               (patient_id, specialty, complaints, response, status, title, session_id)
+               VALUES (?, ?, ?, '{}', 'active', ?, ?)""",
+            (patient_id, specialty, complaints, title, session_id),
+        )
+    return cursor.lastrowid
+
+
+def add_chat_message(
+    consultation_id: int,
+    role: str,
+    content: str,
+    metadata: dict | None = None,
+) -> int:
+    """Add a chat message. Returns message ID."""
+    conn = get_connection()
+    with conn:
+        cursor = conn.execute(
+            """INSERT INTO chat_messages (consultation_id, role, content, metadata)
+               VALUES (?, ?, ?, ?)""",
+            (consultation_id, role, content, json.dumps(metadata or {}, ensure_ascii=False)),
+        )
+    return cursor.lastrowid
+
+
+def get_chat_messages(consultation_id: int) -> list[dict]:
+    """Get all messages for a consultation, ordered chronologically."""
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT m.id, m.consultation_id, m.role, m.content, m.metadata, m.created_at
+           FROM chat_messages m
+           WHERE m.consultation_id = ?
+           ORDER BY m.created_at ASC, m.id ASC""",
+        (consultation_id,),
+    ).fetchall()
+
+    results = []
+    for r in rows:
+        entry = dict(r)
+        try:
+            entry["metadata"] = json.loads(r["metadata"])
+        except (json.JSONDecodeError, TypeError):
+            entry["metadata"] = {}
+        # Attach attachments for this message
+        atts = conn.execute(
+            """SELECT id, file_name, file_type, file_size, created_at
+               FROM chat_attachments WHERE message_id = ?""",
+            (r["id"],),
+        ).fetchall()
+        entry["attachments"] = [dict(a) for a in atts]
+        results.append(entry)
+    return results
+
+
+def save_chat_attachment(
+    consultation_id: int,
+    message_id: int | None,
+    file_name: str,
+    file_type: str,
+    file_size: int,
+    file_path: str,
+) -> int:
+    """Save a chat attachment record. Returns attachment ID."""
+    conn = get_connection()
+    with conn:
+        cursor = conn.execute(
+            """INSERT INTO chat_attachments
+               (consultation_id, message_id, file_name, file_type, file_size, file_path)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (consultation_id, message_id, file_name, file_type, file_size, file_path),
+        )
+    return cursor.lastrowid
+
+
+def get_chat_attachment(attachment_id: int) -> dict | None:
+    """Get a single attachment by ID."""
+    conn = get_connection()
+    row = conn.execute(
+        """SELECT id, consultation_id, message_id, file_name, file_type, file_size, file_path, created_at
+           FROM chat_attachments WHERE id = ?""",
+        (attachment_id,),
+    ).fetchone()
+    return dict(row) if row else None
+
+
+def get_consultation_by_id(consultation_id: int) -> dict | None:
+    """Get consultation metadata by ID."""
+    conn = get_connection()
+    row = conn.execute(
+        """SELECT c.id, c.patient_id, c.specialty, c.complaints, c.response,
+                  c.date, c.status, c.title, c.session_id,
+                  p.first_name, p.last_name
+           FROM consultations c
+           LEFT JOIN patients p ON c.patient_id = p.id
+           WHERE c.id = ?""",
+        (consultation_id,),
+    ).fetchone()
+    if not row:
+        return None
+    entry = dict(row)
+    try:
+        entry["response"] = json.loads(row["response"]) if row["response"] else {}
+    except (json.JSONDecodeError, TypeError):
+        entry["response"] = {}
+    return entry
+
+
+def get_patient_chat_consultations(patient_id: str, limit: int = 50) -> list[dict]:
+    """Get chat consultations for a patient with last message preview."""
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT c.id, c.specialty, c.complaints, c.date, c.status, c.title, c.session_id,
+                  (SELECT content FROM chat_messages
+                   WHERE consultation_id = c.id ORDER BY created_at DESC, id DESC LIMIT 1) AS last_message,
+                  (SELECT COUNT(*) FROM chat_messages WHERE consultation_id = c.id) AS message_count
+           FROM consultations c
+           WHERE c.patient_id = ?
+           ORDER BY c.date DESC
+           LIMIT ?""",
+        (patient_id, limit),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def close_consultation(consultation_id: int) -> bool:
+    """Close a consultation. Returns True if updated."""
+    conn = get_connection()
+    with conn:
+        cur = conn.execute(
+            "UPDATE consultations SET status = 'closed' WHERE id = ? AND status = 'active'",
+            (consultation_id,),
+        )
+    return cur.rowcount > 0

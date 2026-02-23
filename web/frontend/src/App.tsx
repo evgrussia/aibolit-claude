@@ -10,6 +10,8 @@ import LabResultsPage from './pages/LabResultsPage';
 import VitalsHistoryPage from './pages/VitalsHistoryPage';
 import ConsultationsPage from './pages/ConsultationsPage';
 import ConsultDoctorPage from './pages/ConsultDoctorPage';
+import ChatPage from './pages/ChatPage';
+import ChatHistoryPage from './pages/ChatHistoryPage';
 import DiagnosisDetailPage from './pages/DiagnosisDetailPage';
 import HealthTimelinePage from './pages/HealthTimelinePage';
 import DiagnosticsPage from './pages/DiagnosticsPage';
@@ -62,6 +64,8 @@ export default function App() {
                     <Route path="/patients/:patientId/timeline" element={<HealthTimelinePage />} />
                     <Route path="/patients/:patientId/diagnoses/:icdCode" element={<DiagnosisDetailPage />} />
                     <Route path="/consult" element={<ConsultDoctorPage />} />
+                    <Route path="/chat" element={<ChatHistoryPage />} />
+                    <Route path="/chat/:consultationId" element={<ChatPage />} />
                     <Route path="/diagnostics" element={<DiagnosticsPage />} />
                     <Route path="/drugs" element={<DrugToolsPage />} />
                     <Route path="/documents" element={<DocumentsPage />} />

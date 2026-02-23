@@ -40,6 +40,10 @@ async def generate_consultation(
 
     prompt = _build_prompt(specialty_name, complaints, patient_context, specialization)
 
+    # Build clean env: remove CLAUDECODE* vars to allow nested CLI invocation
+    _skip = {"CLAUDECODE", "CLAUDE_CODE_SSE_PORT", "CLAUDE_CODE_ENTRYPOINT"}
+    env = {k: v for k, v in os.environ.items() if k not in _skip}
+
     proc = None
     try:
         proc = await asyncio.create_subprocess_exec(
@@ -50,6 +54,7 @@ async def generate_consultation(
             prompt,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            env=env,
         )
         stdout, stderr = await asyncio.wait_for(
             proc.communicate(),

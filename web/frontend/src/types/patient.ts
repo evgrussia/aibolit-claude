@@ -162,3 +162,39 @@ export interface DiseaseInfo {
   symptoms: string[];
   risk_factors: string[];
 }
+
+// ── Chat types ─────────────────────────────────────────
+
+export interface ChatAttachment {
+  id: number;
+  file_name: string;
+  file_type: string;
+  file_size: number;
+}
+
+export interface ChatMessage {
+  id: number;
+  consultation_id: number;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  attachments?: ChatAttachment[];
+  metadata?: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface ChatDoctor {
+  specialty_id: string;
+  name: string;
+  qualification: string;
+}
+
+export interface ChatConsultation {
+  id: number;
+  specialty: string;
+  status: 'active' | 'closed' | 'legacy';
+  title: string;
+  doctor: ChatDoctor;
+  date: string;
+  last_message_preview?: string;
+  message_count: number;
+}

@@ -7,6 +7,7 @@ services:
       - aibolit-data:/app/data
     environment:
       - AIBOLIT_SECRET_KEY=${AIBOLIT_SECRET_KEY:-aibolit-secret-key-change-in-production}
+      - CLAUDE_CODE_OAUTH_TOKEN=${CLAUDE_CODE_OAUTH_TOKEN:-}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8007/api/health')"]
