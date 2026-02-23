@@ -1,6 +1,6 @@
 """Diagnostic tool endpoints."""
-from fastapi import APIRouter
-from pydantic import BaseModel
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, field_validator
 
 from src.tools.diagnostic import (
     analyze_lab_results,
@@ -31,6 +31,41 @@ class AssessVitalsRequest(BaseModel):
     respiratory_rate: int | None = None
     blood_glucose: float | None = None
 
+    @field_validator("systolic_bp", "diastolic_bp")
+    @classmethod
+    def validate_bp(cls, v: int | None) -> int | None:
+        if v is not None and not (20 <= v <= 400):
+            raise ValueError("АД должно быть от 20 до 400 mmHg")
+        return v
+
+    @field_validator("heart_rate")
+    @classmethod
+    def validate_hr(cls, v: int | None) -> int | None:
+        if v is not None and not (10 <= v <= 300):
+            raise ValueError("ЧСС должно быть от 10 до 300 уд/мин")
+        return v
+
+    @field_validator("temperature")
+    @classmethod
+    def validate_temp(cls, v: float | None) -> float | None:
+        if v is not None and not (25.0 <= v <= 45.0):
+            raise ValueError("Температура должна быть от 25 до 45 °C")
+        return v
+
+    @field_validator("spo2")
+    @classmethod
+    def validate_spo2(cls, v: float | None) -> float | None:
+        if v is not None and not (0 <= v <= 100):
+            raise ValueError("SpO2 должно быть от 0 до 100%")
+        return v
+
+    @field_validator("blood_glucose")
+    @classmethod
+    def validate_glucose(cls, v: float | None) -> float | None:
+        if v is not None and not (0 <= v <= 100):
+            raise ValueError("Глюкоза должна быть от 0 до 100 ммоль/л")
+        return v
+
 
 class GfrRequest(BaseModel):
     creatinine: float
@@ -58,6 +93,8 @@ def analyze_labs(req: AnalyzeLabsRequest):
 @router.post("/assess-vitals")
 def vitals_assessment(req: AssessVitalsRequest):
     kwargs = {k: v for k, v in req.model_dump().items() if v is not None}
+    if not kwargs:
+        raise HTTPException(400, "Укажите хотя бы один витальный показатель")
     return assess_vitals(**kwargs)
 
 

@@ -1,9 +1,11 @@
 import api from './client';
 
 export interface DrugInfo {
-  name: string; brand_names?: string[]; generic_name?: string;
+  name: string; brand_name?: string; brand_names?: string[]; generic_name?: string;
   indications?: string; dosage?: string; contraindications?: string;
   warnings?: string; adverse_reactions?: string; drug_class?: string;
+  drug_interactions?: string; pregnancy?: string; mechanism_of_action?: string;
+  manufacturer?: string;
 }
 
 export interface DrugInteractionResult {

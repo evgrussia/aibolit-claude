@@ -125,6 +125,17 @@ export interface ConsultationResult {
   instructions: string;
   disclaimer: string;
   ai_generated?: boolean;
+  emergency?: {
+    call: string;
+    message: string;
+    flags: Array<{ category: string; description: string; action: string }>;
+  };
+  red_flags?: Array<{
+    category: string;
+    description: string;
+    urgency: number;
+    action: string;
+  }>;
 }
 
 export interface IcdResult {

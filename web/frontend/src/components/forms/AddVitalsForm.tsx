@@ -2,6 +2,16 @@ import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { VITALS_FIELDS } from '../../constants';
 
+const VITALS_BOUNDS: Record<string, { min: number; max: number }> = {
+  systolic_bp:      { min: 20, max: 400 },
+  diastolic_bp:     { min: 20, max: 400 },
+  heart_rate:       { min: 10, max: 300 },
+  temperature:      { min: 25, max: 45 },
+  spo2:             { min: 0,  max: 100 },
+  respiratory_rate: { min: 1,  max: 80 },
+  blood_glucose:    { min: 0,  max: 100 },
+};
+
 interface Props {
   onSubmit: (data: Record<string, unknown>) => Promise<void>;
   isPending: boolean;
@@ -38,6 +48,8 @@ export default function AddVitalsForm({ onSubmit, isPending }: Props) {
               id={`vital-${f.key}`}
               type="number"
               step="any"
+              min={VITALS_BOUNDS[f.key]?.min}
+              max={VITALS_BOUNDS[f.key]?.max}
               placeholder={f.example}
               value={values[f.key] || ''}
               onChange={e => set(f.key, e.target.value)}

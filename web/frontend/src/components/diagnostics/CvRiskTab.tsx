@@ -4,6 +4,7 @@ import Card from '../shared/Card.tsx';
 import Badge from '../shared/Badge.tsx';
 import InfoBanner from '../shared/InfoBanner.tsx';
 import HelpTooltip from '../shared/HelpTooltip.tsx';
+import MedicalDisclaimer from '../shared/MedicalDisclaimer.tsx';
 import { calculateCvRisk, type CvRiskResponse } from '../../api/diagnostics.ts';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 
@@ -118,45 +119,48 @@ export default function CvRiskTab() {
       </Card>
 
       {result && (
-        <Card title="Результат">
-          <div className="flex flex-col md:flex-row items-center gap-8">
-            <div style={{ width: 180, height: 180 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={chartData} cx="50%" cy="50%" innerRadius={55} outerRadius={80}
-                    dataKey="value" startAngle={90} endAngle={-270}>
-                    <Cell fill={riskColor} />
-                    <Cell fill="#f1f5f9" />
-                  </Pie>
-                  <Tooltip formatter={(v: unknown) => `${Number(v).toFixed(1)}%`} />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="text-center -mt-20">
-                <div className="text-3xl font-bold" style={{ color: riskColor }}>
-                  {result.risk_percent?.toFixed(1)}%
-                </div>
-              </div>
-            </div>
-            <div className="flex-1">
-              <div className="text-xl font-semibold text-gray-800 mb-1">{result.risk_category}</div>
-              <div className="text-gray-500 mb-3">{result.risk_level}</div>
-              {result.contributing_factors?.length > 0 && (
-                <div className="mb-3">
-                  <p className="text-sm font-medium text-gray-700 mb-1">Факторы риска:</p>
-                  <div className="flex flex-wrap gap-1">
-                    {result.contributing_factors.map((f, i) => <Badge key={i} variant="warning">{f}</Badge>)}
+        <>
+          <Card title="Результат">
+            <div className="flex flex-col md:flex-row items-center gap-8">
+              <div style={{ width: 180, height: 180 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={chartData} cx="50%" cy="50%" innerRadius={55} outerRadius={80}
+                      dataKey="value" startAngle={90} endAngle={-270}>
+                      <Cell fill={riskColor} />
+                      <Cell fill="#f1f5f9" />
+                    </Pie>
+                    <Tooltip formatter={(v: unknown) => `${Number(v).toFixed(1)}%`} />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="text-center -mt-20">
+                  <div className="text-3xl font-bold" style={{ color: riskColor }}>
+                    {result.risk_percent?.toFixed(1)}%
                   </div>
                 </div>
-              )}
-              {result.recommendations?.length > 0 && (
-                <div>
-                  <p className="text-sm font-medium text-gray-700 mb-1">Рекомендации:</p>
-                  {result.recommendations.map((r, i) => <p key={i} className="text-sm text-blue-700">{r}</p>)}
-                </div>
-              )}
+              </div>
+              <div className="flex-1">
+                <div className="text-xl font-semibold text-gray-800 mb-1">{result.risk_category}</div>
+                <div className="text-gray-500 mb-3">{result.risk_level}</div>
+                {result.contributing_factors?.length > 0 && (
+                  <div className="mb-3">
+                    <p className="text-sm font-medium text-gray-700 mb-1">Факторы риска:</p>
+                    <div className="flex flex-wrap gap-1">
+                      {result.contributing_factors.map((f, i) => <Badge key={i} variant="warning">{f}</Badge>)}
+                    </div>
+                  </div>
+                )}
+                {result.recommendations?.length > 0 && (
+                  <div>
+                    <p className="text-sm font-medium text-gray-700 mb-1">Рекомендации:</p>
+                    {result.recommendations.map((r, i) => <p key={i} className="text-sm text-blue-700">{r}</p>)}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        </Card>
+          </Card>
+          <MedicalDisclaimer type="diagnosis" />
+        </>
       )}
     </div>
   );

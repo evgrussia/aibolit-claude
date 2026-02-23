@@ -1,6 +1,9 @@
 """PubMed/NCBI integration for evidence-based medicine research."""
+import logging
 import httpx
 from typing import Any
+
+logger = logging.getLogger("aibolit.integrations.pubmed")
 
 PUBMED_BASE = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
 PUBMED_SEARCH = f"{PUBMED_BASE}/esearch.fcgi"
@@ -60,6 +63,7 @@ async def search_pubmed(query: str, max_results: int = 10) -> list[dict[str, Any
 
             return results
     except Exception:
+        logger.warning("PubMed search failed for query=%s", query, exc_info=True)
         return []
 
 
@@ -77,6 +81,7 @@ async def fetch_abstract(pmid: str) -> str:
                 return f"Ошибка получения абстракта для PMID {pmid}"
             return resp.text
     except Exception:
+        logger.warning("PubMed abstract fetch failed for PMID=%s", pmid, exc_info=True)
         return f"Ошибка сети при получении абстракта для PMID {pmid}"
 
 
@@ -120,4 +125,5 @@ async def search_clinical_trials(condition: str, max_results: int = 5) -> list[d
                 })
             return trials
     except Exception:
+        logger.warning("ClinicalTrials.gov search failed for condition=%s", condition, exc_info=True)
         return []

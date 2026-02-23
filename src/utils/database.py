@@ -500,7 +500,7 @@ def list_patients() -> list[dict[str, str]]:
     return [
         {
             "id": r["id"],
-            "name": f"{r['last_name']} {r['first_name']}",
+            "name": f"{r['last_name'] or ''} {r['first_name'] or ''}".strip() or "Без имени",
             "dob": r["date_of_birth"],
             "gender": r["gender"],
         }
@@ -776,7 +776,9 @@ def get_consultation_history(
         entry = {
             "id": r["id"],
             "patient_id": r["patient_id"],
-            "patient_name": f"{r['last_name']} {r['first_name']}" if r["first_name"] else None,
+            "patient_name": (
+                f"{r['last_name'] or ''} {r['first_name'] or ''}".strip() or None
+            ) if r["patient_id"] else None,
             "specialty": r["specialty"],
             "complaints": r["complaints"],
             "date": r["date"],
@@ -851,7 +853,7 @@ def search_patients(query: str) -> list[dict[str, str]]:
     return [
         {
             "id": r["id"],
-            "name": f"{r['last_name']} {r['first_name']}",
+            "name": f"{r['last_name'] or ''} {r['first_name'] or ''}".strip() or "Без имени",
             "dob": r["date_of_birth"],
             "gender": r["gender"],
         }
@@ -864,7 +866,7 @@ def get_patients_by_diagnosis(icd10_prefix: str) -> list[dict]:
     conn = get_connection()
     rows = conn.execute(
         """SELECT DISTINCT p.id AS patient_id,
-                  p.last_name || ' ' || p.first_name AS patient_name,
+                  COALESCE(p.last_name, '') || ' ' || COALESCE(p.first_name, '') AS patient_name,
                   d.name AS diagnosis, d.icd10_code, d.status
            FROM diagnoses d
            JOIN patients p ON d.patient_id = p.id

@@ -1,6 +1,9 @@
 """OpenFDA integration for drug information and adverse events."""
+import logging
 import httpx
 from typing import Any
+
+logger = logging.getLogger("aibolit.integrations.openfda")
 
 FDA_BASE = "https://api.fda.gov"
 
@@ -44,6 +47,7 @@ async def search_drug(drug_name: str) -> dict[str, Any]:
                 "pharmacodynamics": _extract_first(drug.get("pharmacodynamics", [])),
             }
     except Exception:
+        logger.warning("OpenFDA drug search failed for drug=%s", drug_name, exc_info=True)
         return {"error": f"Ошибка сети при поиске '{drug_name}' в OpenFDA"}
 
 
@@ -73,6 +77,7 @@ async def get_adverse_events(drug_name: str, limit: int = 10) -> list[dict]:
                 })
             return events
     except Exception:
+        logger.warning("OpenFDA adverse events failed for drug=%s", drug_name, exc_info=True)
         return []
 
 
@@ -99,6 +104,7 @@ async def check_drug_recall(drug_name: str) -> list[dict]:
                 for r in resp.json().get("results", [])
             ]
     except Exception:
+        logger.warning("OpenFDA recall check failed for drug=%s", drug_name, exc_info=True)
         return []
 
 

@@ -1,4 +1,7 @@
 """Medical document generation + file upload/download endpoints."""
+import os
+import re
+
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from fastapi.responses import Response
 from pydantic import BaseModel
@@ -17,6 +20,20 @@ from ..auth import get_current_user
 router = APIRouter(prefix="/documents", tags=["documents"])
 
 MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10 MB
+ALLOWED_CONTENT_TYPES = {
+    "application/pdf", "image/jpeg", "image/png", "image/webp",
+    "text/plain", "text/csv",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+}
+_SAFE_FILENAME_RE = re.compile(r'[^\w\s\-\.\(\)]', re.UNICODE)
+
+
+def _sanitize_filename(name: str) -> str:
+    """Strip path traversal and special chars from uploaded filename."""
+    name = os.path.basename(name)  # strip directory components
+    name = _SAFE_FILENAME_RE.sub('_', name)  # replace unsafe chars
+    return name[:255] or "untitled"  # limit length
 
 
 # ── Document generation (existing) ──────────────────────────
@@ -105,19 +122,29 @@ async def upload_document(
     if not patient_id:
         raise HTTPException(400, "Нет привязанной карты пациента")
 
+    # Validate content type
+    content_type = file.content_type or ""
+    if content_type and content_type not in ALLOWED_CONTENT_TYPES:
+        raise HTTPException(
+            415, f"Тип файла '{content_type}' не поддерживается. "
+            "Допустимые: PDF, JPEG, PNG, WEBP, TXT, CSV, DOC, DOCX"
+        )
+
     content = await file.read()
     if len(content) > MAX_UPLOAD_SIZE:
         raise HTTPException(413, "Файл слишком большой (максимум 10 МБ)")
 
+    safe_name = _sanitize_filename(file.filename or "untitled")
+
     doc_id = save_document(
         patient_id=patient_id,
-        file_name=file.filename or "untitled",
-        file_type=file.content_type or "",
+        file_name=safe_name,
+        file_type=content_type,
         file_size=len(content),
         content=content,
         notes=notes,
     )
-    return {"id": doc_id, "file_name": file.filename, "file_size": len(content)}
+    return {"id": doc_id, "file_name": safe_name, "file_size": len(content)}
 
 
 @router.get("/my")
@@ -136,10 +163,11 @@ def download_document(doc_id: int, current_user: dict = Depends(get_current_user
     # Ownership check
     if doc["patient_id"] != current_user.get("patient_id"):
         raise HTTPException(403, "Нет доступа к этому документу")
+    safe_name = _sanitize_filename(doc["file_name"])
     return Response(
         content=doc["content"],
         media_type=doc["file_type"] or "application/octet-stream",
-        headers={"Content-Disposition": f'attachment; filename="{doc["file_name"]}"'},
+        headers={"Content-Disposition": f'attachment; filename="{safe_name}"'},
     )
 
 

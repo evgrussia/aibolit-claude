@@ -7,7 +7,7 @@ class MedicalSkill:
     """A specific clinical skill an AI doctor can perform."""
     name: str
     description: str
-    tool_name: str  # MCP tool name
+    tool_name: str  # capability identifier
 
 
 @dataclass

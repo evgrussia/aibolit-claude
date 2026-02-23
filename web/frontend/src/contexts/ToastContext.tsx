@@ -37,7 +37,10 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 
   const addToast = useCallback((type: ToastType, message: string) => {
     const id = ++nextId;
-    setToasts(prev => [...prev, { id, type, message }]);
+    setToasts(prev => {
+      const next = [...prev, { id, type, message }];
+      return next.length > 5 ? next.slice(-5) : next;
+    });
     setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== id));
     }, 4000);
@@ -56,7 +59,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={value}>
       {children}
-      <div className="fixed bottom-4 right-4 z-[60] space-y-2 max-w-sm">
+      <div role="status" aria-live="polite" className="fixed bottom-4 right-4 z-[60] space-y-2 max-w-sm">
         <AnimatePresence>
           {toasts.map(t => (
             <motion.div

@@ -53,17 +53,20 @@ export default function EditProfileForm({ patient, onSubmit, isPending }: Props)
     }
   };
 
+  const canSubmit = firstName.trim().length > 0 && lastName.trim().length > 0 && dateOfBirth;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canSubmit) return;
     await onSubmit({
-      first_name: firstName,
-      last_name: lastName,
+      first_name: firstName.trim(),
+      last_name: lastName.trim(),
       date_of_birth: dateOfBirth,
       gender,
       blood_type: bloodType || null,
-      notes,
-      family_history: familyHistory,
-      surgical_history: surgicalHistory,
+      notes: notes.trim(),
+      family_history: familyHistory.filter(s => s.trim()),
+      surgical_history: surgicalHistory.filter(s => s.trim()),
       lifestyle,
     });
   };
@@ -78,6 +81,7 @@ export default function EditProfileForm({ patient, onSubmit, isPending }: Props)
             id="profile-last-name"
             value={lastName}
             onChange={e => setLastName(e.target.value)}
+            required
             disabled={isPending}
             className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-medical-teal/30 disabled:opacity-50"
           />
@@ -88,6 +92,7 @@ export default function EditProfileForm({ patient, onSubmit, isPending }: Props)
             id="profile-first-name"
             value={firstName}
             onChange={e => setFirstName(e.target.value)}
+            required
             disabled={isPending}
             className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-medical-teal/30 disabled:opacity-50"
           />
@@ -101,6 +106,8 @@ export default function EditProfileForm({ patient, onSubmit, isPending }: Props)
             type="date"
             value={dateOfBirth}
             onChange={e => setDateOfBirth(e.target.value)}
+            required
+            max={new Date().toISOString().split('T')[0]}
             disabled={isPending}
             className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-medical-teal/30 disabled:opacity-50"
           />
@@ -252,7 +259,7 @@ export default function EditProfileForm({ patient, onSubmit, isPending }: Props)
 
       <button
         type="submit"
-        disabled={isPending}
+        disabled={!canSubmit || isPending}
         className="w-full py-2.5 bg-medical-teal text-white rounded-lg font-medium text-sm hover:bg-medical-teal/90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
       >
         {isPending ? <><Loader2 size={16} className="animate-spin" /> Сохранение...</> : 'Сохранить изменения'}

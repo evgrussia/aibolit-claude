@@ -58,8 +58,12 @@ export default function LoginPage() {
       setError('Пароли не совпадают');
       return;
     }
-    if (regData.password.length < 4) {
-      setError('Пароль должен содержать минимум 4 символа');
+    if (regData.password.length < 8) {
+      setError('Пароль должен содержать минимум 8 символов');
+      return;
+    }
+    if (!/[a-zA-Zа-яА-ЯёЁ]/.test(regData.password) || !/\d/.test(regData.password)) {
+      setError('Пароль должен содержать буквы и цифры');
       return;
     }
 
@@ -220,7 +224,7 @@ export default function LoginPage() {
                           className={inputClass + ' pr-10'}
                           value={regData.password}
                           onChange={e => setRegData({ ...regData, password: e.target.value })}
-                          placeholder="Минимум 4 символа"
+                          placeholder="Минимум 8 символов (буквы + цифры)"
                           required
                           autoComplete="new-password"
                         />

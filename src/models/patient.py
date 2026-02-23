@@ -52,30 +52,86 @@ class VitalSigns:
     def assess(self) -> list[str]:
         """Return list of abnormalities detected."""
         alerts = []
-        if self.systolic_bp and self.systolic_bp > 140:
+        # --- Blood pressure ---
+        if self.systolic_bp and self.systolic_bp >= 180:
+            alerts.append(
+                f"КРИТИЧНО: систолическое АД {self.systolic_bp} mmHg (>=180) "
+                "— гипертонический криз! Вызовите скорую: 103 / 112"
+            )
+        elif self.systolic_bp and self.systolic_bp > 140:
             alerts.append(f"Гипертензия: систолическое {self.systolic_bp} mmHg (>140)")
         if self.systolic_bp and self.systolic_bp < 90:
             alerts.append(f"Гипотензия: систолическое {self.systolic_bp} mmHg (<90)")
-        if self.diastolic_bp and self.diastolic_bp > 90:
+        if self.diastolic_bp and self.diastolic_bp >= 110:
+            alerts.append(
+                f"КРИТИЧНО: диастолическое АД {self.diastolic_bp} mmHg (>=110) "
+                "— гипертонический криз! Вызовите скорую: 103 / 112"
+            )
+        elif self.diastolic_bp and self.diastolic_bp > 90:
             alerts.append(f"Гипертензия: диастолическое {self.diastolic_bp} mmHg (>90)")
-        if self.heart_rate and self.heart_rate > 100:
+
+        # --- Heart rate ---
+        if self.heart_rate and self.heart_rate >= 150:
+            alerts.append(
+                f"КРИТИЧНО: ЧСС {self.heart_rate} уд/мин (>=150) "
+                "— тахиаритмия! Вызовите скорую: 103 / 112"
+            )
+        elif self.heart_rate and self.heart_rate > 100:
             alerts.append(f"Тахикардия: ЧСС {self.heart_rate} уд/мин (>100)")
-        if self.heart_rate and self.heart_rate < 60:
+        if self.heart_rate and self.heart_rate < 40:
+            alerts.append(
+                f"КРИТИЧНО: ЧСС {self.heart_rate} уд/мин (<40) "
+                "— выраженная брадикардия! Вызовите скорую: 103 / 112"
+            )
+        elif self.heart_rate and self.heart_rate < 60:
             alerts.append(f"Брадикардия: ЧСС {self.heart_rate} уд/мин (<60)")
-        if self.temperature and self.temperature > 37.5:
+
+        # --- Temperature ---
+        if self.temperature and self.temperature >= 40.0:
+            alerts.append(
+                f"КРИТИЧНО: температура {self.temperature}°C (>=40) "
+                "— гиперпирексия! Вызовите скорую: 103 / 112"
+            )
+        elif self.temperature and self.temperature > 37.5:
             alerts.append(f"Лихорадка: {self.temperature}°C (>37.5)")
-        if self.temperature and self.temperature < 36.0:
+        if self.temperature and self.temperature < 35.0:
+            alerts.append(
+                f"КРИТИЧНО: температура {self.temperature}°C (<35) "
+                "— выраженная гипотермия! Вызовите скорую: 103 / 112"
+            )
+        elif self.temperature and self.temperature < 36.0:
             alerts.append(f"Гипотермия: {self.temperature}°C (<36.0)")
-        if self.spo2 and self.spo2 < 95:
-            alerts.append(f"Гипоксемия: SpO2 {self.spo2}% (<95)")
+
+        # --- SpO2 ---
         if self.spo2 and self.spo2 < 90:
-            alerts.append(f"КРИТИЧНО: SpO2 {self.spo2}% (<90) — требуется экстренная помощь")
+            alerts.append(
+                f"КРИТИЧНО: SpO2 {self.spo2}% (<90) "
+                "— тяжёлая гипоксия! Вызовите скорую: 103 / 112"
+            )
+        elif self.spo2 and self.spo2 < 95:
+            alerts.append(f"Гипоксемия: SpO2 {self.spo2}% (<95)")
+
+        # --- Respiratory rate ---
         if self.respiratory_rate and self.respiratory_rate > 20:
             alerts.append(f"Тахипноэ: ЧД {self.respiratory_rate}/мин (>20)")
-        if self.blood_glucose and self.blood_glucose > 11.1:
+
+        # --- Blood glucose ---
+        if self.blood_glucose and self.blood_glucose >= 20.0:
+            alerts.append(
+                f"КРИТИЧНО: глюкоза {self.blood_glucose} ммоль/л (>=20) "
+                "— гипергликемический криз! Вызовите скорую: 103 / 112"
+            )
+        elif self.blood_glucose and self.blood_glucose > 11.1:
             alerts.append(f"Гипергликемия: {self.blood_glucose} ммоль/л (>11.1)")
-        if self.blood_glucose and self.blood_glucose < 3.9:
+        if self.blood_glucose and self.blood_glucose < 2.8:
+            alerts.append(
+                f"КРИТИЧНО: глюкоза {self.blood_glucose} ммоль/л (<2.8) "
+                "— тяжёлая гипогликемия! Вызовите скорую: 103 / 112"
+            )
+        elif self.blood_glucose and self.blood_glucose < 3.9:
             alerts.append(f"Гипогликемия: {self.blood_glucose} ммоль/л (<3.9)")
+
+        # --- BMI ---
         bmi = self.bmi()
         if bmi and bmi > 30:
             alerts.append(f"Ожирение: ИМТ {bmi} (>30)")

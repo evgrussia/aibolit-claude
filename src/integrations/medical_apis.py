@@ -1,6 +1,9 @@
 """Additional free medical API integrations."""
+import logging
 import httpx
 from typing import Any
+
+logger = logging.getLogger("aibolit.integrations.medical")
 
 
 async def search_rxnorm(drug_name: str) -> dict[str, Any]:
@@ -37,6 +40,7 @@ async def search_rxnorm(drug_name: str) -> dict[str, Any]:
                 "tty": props.get("tty", ""),
             }
     except Exception:
+        logger.warning("RxNorm search failed for drug=%s", drug_name, exc_info=True)
         return {"error": f"Ошибка сети при поиске '{drug_name}' в RxNorm"}
 
 
@@ -69,6 +73,7 @@ async def check_drug_interactions(rxcui_list: list[str]) -> list[dict]:
                         })
             return interactions
     except Exception:
+        logger.warning("RxNorm interactions check failed", exc_info=True)
         return []
 
 
@@ -92,7 +97,7 @@ async def search_snomed(term: str) -> list[dict]:
                     for item in data.get("items", [])
                 ]
     except Exception:
-        pass
+        logger.warning("SNOMED search failed for term=%s", term, exc_info=True)
     return []
 
 
@@ -138,6 +143,7 @@ async def get_gene_info(gene_symbol: str) -> dict[str, Any]:
                 "aliases": gene_data.get("otheraliases", ""),
             }
     except Exception:
+        logger.warning("NCBI Gene search failed for gene=%s", gene_symbol, exc_info=True)
         return {"error": f"Ошибка сети при поиске гена '{gene_symbol}'"}
 
 
@@ -178,6 +184,7 @@ async def search_omim(query: str) -> list[dict]:
                     })
             return results
     except Exception:
+        logger.warning("OMIM search failed for query=%s", query, exc_info=True)
         return []
 
 
@@ -205,5 +212,5 @@ async def search_open_targets(disease: str) -> list[dict]:
                 data = resp.json()
                 return data.get("data", {}).get("search", {}).get("hits", [])
     except Exception:
-        pass
+        logger.warning("Open Targets search failed for disease=%s", disease, exc_info=True)
     return []

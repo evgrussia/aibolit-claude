@@ -3,6 +3,7 @@ import { FlaskConical } from 'lucide-react';
 import Card from '../shared/Card.tsx';
 import InfoBanner from '../shared/InfoBanner.tsx';
 import HelpTooltip from '../shared/HelpTooltip.tsx';
+import MedicalDisclaimer from '../shared/MedicalDisclaimer.tsx';
 import { statusBadge } from './statusBadge.tsx';
 import { COMMON_LABS } from '../../constants/medical.ts';
 import { analyzeLabs, type LabInput, type LabAnalysisResponse } from '../../api/diagnostics.ts';
@@ -87,9 +88,10 @@ export default function LabAnalysisTab() {
       </Card>
 
       {result && (
+      <>
         <Card title="Результаты анализа">
           {result.critical_flags?.length > 0 && (
-            <div className="mb-4 p-3 bg-red-50 rounded-lg border border-red-200">
+            <div role="alert" className="mb-4 p-3 bg-red-50 rounded-lg border border-red-200">
               <p className="text-red-700 font-semibold text-sm mb-1">Критические отклонения:</p>
               {result.critical_flags.map((f, i) => <p key={i} className="text-red-600 text-sm">{f}</p>)}
             </div>
@@ -128,10 +130,9 @@ export default function LabAnalysisTab() {
               <strong>Заключение:</strong> {result.summary}
             </div>
           )}
-          <p className="mt-3 text-xs text-gray-400">
-            * Результаты носят информационный характер и требуют верификации врачом.
-          </p>
         </Card>
+        <MedicalDisclaimer type="lab_analysis" />
+      </>
       )}
     </div>
   );

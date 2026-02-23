@@ -26,8 +26,12 @@ export default function SettingsPage() {
       toast.error('Пароли не совпадают');
       return;
     }
-    if (newPassword.length < 4) {
-      toast.error('Пароль должен содержать минимум 4 символа');
+    if (newPassword.length < 8) {
+      toast.error('Пароль должен содержать минимум 8 символов');
+      return;
+    }
+    if (!/[a-zA-Zа-яА-ЯёЁ]/.test(newPassword) || !/\d/.test(newPassword)) {
+      toast.error('Пароль должен содержать буквы и цифры');
       return;
     }
     setChangingPw(true);

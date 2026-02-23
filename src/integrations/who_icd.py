@@ -1,6 +1,9 @@
 """WHO ICD-11 and disease information integration."""
+import logging
 import httpx
 from typing import Any
+
+logger = logging.getLogger("aibolit.integrations.icd")
 
 # WHO ICD-11 API (free, requires token for production but has open endpoints)
 ICD_API_BASE = "https://id.who.int/icd"
@@ -40,6 +43,7 @@ async def search_icd11(query: str, max_results: int = 10) -> list[dict[str, Any]
                 })
             return results
         except Exception:
+            logger.warning("WHO ICD-11 search failed for query=%s, using fallback", query, exc_info=True)
             return _fallback_icd_search(query)
 
 

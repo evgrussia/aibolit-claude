@@ -3,6 +3,8 @@ import { HeartPulse } from 'lucide-react';
 import Card from '../shared/Card.tsx';
 import InfoBanner from '../shared/InfoBanner.tsx';
 import HelpTooltip from '../shared/HelpTooltip.tsx';
+import MedicalDisclaimer from '../shared/MedicalDisclaimer.tsx';
+import EmergencyBanner from '../shared/EmergencyBanner.tsx';
 import { statusBadge } from './statusBadge.tsx';
 import { VITALS_FIELDS } from '../../constants/medical.ts';
 import { assessVitals, type VitalsAssessResponse } from '../../api/diagnostics.ts';
@@ -73,34 +75,40 @@ export default function VitalsAssessTab() {
       </Card>
 
       {result && (
-        <Card title="Оценка витальных показателей">
+        <>
           {result.emergency_flags?.length > 0 && (
-            <div className="mb-4 p-3 bg-red-50 rounded-lg border border-red-200">
-              <p className="text-red-700 font-semibold text-sm">Требует немедленного внимания:</p>
-              {result.emergency_flags.map((f, i) => <p key={i} className="text-red-600 text-sm">{f}</p>)}
-            </div>
+            <EmergencyBanner />
           )}
-          <div className="grid gap-2 mb-4">
-            {result.findings?.map((f, i) => (
-              <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-gray-50">
-                <div className="flex-1">
-                  <span className="font-medium text-sm text-gray-800">{f.parameter}: </span>
-                  <span className="font-mono text-sm">{f.value}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  {statusBadge(f.status)}
-                  <span className="text-xs text-gray-500">{f.message}</span>
-                </div>
+          <Card title="Оценка витальных показателей">
+            {result.emergency_flags?.length > 0 && (
+              <div role="alert" className="mb-4 p-3 bg-red-50 rounded-lg border border-red-200">
+                <p className="text-red-700 font-semibold text-sm">Требует немедленного внимания:</p>
+                {result.emergency_flags.map((f, i) => <p key={i} className="text-red-600 text-sm">{f}</p>)}
               </div>
-            ))}
-          </div>
-          {result.recommendations?.length > 0 && (
-            <div className="p-3 bg-blue-50 rounded-lg">
-              <p className="text-sm font-semibold text-blue-800 mb-2">Рекомендации:</p>
-              {result.recommendations.map((r, i) => <p key={i} className="text-blue-700 text-sm">{r}</p>)}
+            )}
+            <div className="grid gap-2 mb-4">
+              {result.findings?.map((f, i) => (
+                <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-gray-50">
+                  <div className="flex-1">
+                    <span className="font-medium text-sm text-gray-800">{f.parameter}: </span>
+                    <span className="font-mono text-sm">{f.value}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {statusBadge(f.status)}
+                    <span className="text-xs text-gray-500">{f.message}</span>
+                  </div>
+                </div>
+              ))}
             </div>
-          )}
-        </Card>
+            {result.recommendations?.length > 0 && (
+              <div className="p-3 bg-blue-50 rounded-lg">
+                <p className="text-sm font-semibold text-blue-800 mb-2">Рекомендации:</p>
+                {result.recommendations.map((r, i) => <p key={i} className="text-blue-700 text-sm">{r}</p>)}
+              </div>
+            )}
+          </Card>
+          <MedicalDisclaimer type="general" />
+        </>
       )}
     </div>
   );

@@ -37,7 +37,6 @@ RUN pip install --no-cache-dir -r requirements.txt fastapi uvicorn[standard] pyt
 COPY pyproject.toml ./
 COPY src/ ./src/
 COPY web/backend/ ./web/backend/
-COPY config/ ./config/
 
 # Create data directory for SQLite
 RUN mkdir -p /app/data
@@ -47,16 +46,7 @@ EXPOSE 8007
 CMD ["python", "-m", "uvicorn", "web.backend.main:app", "--host", "0.0.0.0", "--port", "8007"]
 
 # ============================================================
-# Stage 3: MCP Streamable HTTP server
-# ============================================================
-FROM backend AS mcp
-
-EXPOSE 8103
-
-CMD ["python", "-m", "uvicorn", "src.mcp_http:starlette_app", "--host", "0.0.0.0", "--port", "8103"]
-
-# ============================================================
-# Stage 4: nginx serving frontend + proxying API
+# Stage 3: nginx serving frontend + proxying API
 # ============================================================
 FROM nginx:alpine AS nginx
 

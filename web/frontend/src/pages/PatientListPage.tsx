@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { Search, User, ChevronRight } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -26,15 +26,20 @@ function PatientListSkeleton() {
 export default function PatientListPage() {
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Debounce search
-  const handleChange = (val: string) => {
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
+
+  const handleChange = useCallback((val: string) => {
     setQuery(val);
-    clearTimeout((handleChange as { timer?: ReturnType<typeof setTimeout> }).timer);
-    (handleChange as { timer?: ReturnType<typeof setTimeout> }).timer = setTimeout(
-      () => setDebouncedQuery(val), 300
-    );
-  };
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => setDebouncedQuery(val), 300);
+  }, []);
 
   const { data: patients = [], isLoading, error, refetch } = usePatients(debouncedQuery);
 

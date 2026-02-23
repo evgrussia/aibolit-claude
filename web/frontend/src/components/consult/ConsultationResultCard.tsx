@@ -1,7 +1,11 @@
 import { Stethoscope, FlaskConical, BookOpen, AlertTriangle, Sparkles } from 'lucide-react';
+import DOMPurify from 'dompurify';
 import Card from '../shared/Card';
 import Badge from '../shared/Badge';
+import EmergencyBanner from '../shared/EmergencyBanner';
 import type { ConsultationResult } from '../../types/patient';
+
+const FALLBACK_DISCLAIMER = '⚠️ Информация предоставлена AI-ассистентом и носит исключительно информационный характер. Не является медицинской консультацией, диагнозом или назначением лечения. Обратитесь к врачу для получения квалифицированной медицинской помощи.';
 
 interface Props {
   result: ConsultationResult;
@@ -29,6 +33,32 @@ export default function ConsultationResultCard({ result }: Props) {
         </div>
       </Card>
 
+      {/* Emergency banner — when red flags detected (shown first!) */}
+      {result.emergency && (
+        <EmergencyBanner message={result.emergency.message} />
+      )}
+
+      {/* Red flags list */}
+      {result.red_flags && result.red_flags.length > 0 && (
+        <Card>
+          <div className="flex items-center gap-2 mb-3" role="alert">
+            <AlertTriangle size={16} className="text-red-500" />
+            <span className="text-sm font-medium text-red-700">Обнаруженные тревожные признаки</span>
+          </div>
+          <div className="space-y-2">
+            {result.red_flags.map((f, i) => (
+              <div key={i} className="flex items-start gap-2 p-2 bg-red-50 rounded-lg">
+                <span className="text-xs font-semibold text-red-600 uppercase shrink-0">{f.category}</span>
+                <div className="flex-1">
+                  <p className="text-sm text-red-700">{f.description}</p>
+                  <p className="text-xs text-red-500 mt-0.5">{f.action}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
       {/* Summary — main content */}
       {result.consultation.summary && (
         <Card>
@@ -37,7 +67,7 @@ export default function ConsultationResultCard({ result }: Props) {
               className="text-sm text-gray-700 leading-relaxed prose prose-sm max-w-none
                          prose-headings:text-gray-800 prose-strong:text-gray-800
                          prose-ul:my-1 prose-li:my-0.5"
-              dangerouslySetInnerHTML={{ __html: markdownToHtml(result.consultation.summary) }}
+              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(markdownToHtml(result.consultation.summary)) }}
             />
           ) : (
             <div className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">
@@ -87,7 +117,7 @@ export default function ConsultationResultCard({ result }: Props) {
       {/* Disclaimer */}
       <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
         <AlertTriangle size={16} className="text-amber-500 shrink-0 mt-0.5" />
-        <p className="text-xs text-amber-700">{result.disclaimer}</p>
+        <p className="text-xs text-amber-700">{result.disclaimer || FALLBACK_DISCLAIMER}</p>
       </div>
     </div>
   );

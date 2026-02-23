@@ -36,7 +36,9 @@ function normalizeLabs(raw: {
       test: i.test_name, value: i.value, unit: i.unit,
       status: i.status === 'normal' ? 'Норма' : i.status === 'high' ? 'Повышен' : i.status === 'low' ? 'Понижен' : i.status,
       interpretation: i.severity === 'critical' ? '⚠️ Критическое отклонение' :
-        i.severity === 'abnormal' ? 'Требует внимания' : 'В пределах нормы',
+        i.severity === 'significant' ? '⚠️ Значительное отклонение' :
+        i.severity === 'mild' ? 'Незначительное отклонение' :
+        i.status !== 'normal' ? 'Требует внимания' : 'В пределах нормы',
     })),
     summary: raw.summary ?? '',
     critical_flags: interps.filter(i => i.severity === 'critical').map(i => `${i.test_name}: ${i.value} ${i.unit}`),
@@ -75,7 +77,9 @@ function normalizeVitals(raw: {
 
   const emergency = alerts.filter(a => a.startsWith('КРИТИЧНО'));
   return {
-    overall_status: severity === 'critical' ? 'Критическое состояние' : severity === 'warning' ? 'Внимание' : 'Норма',
+    overall_status: severity === 'critical' ? 'Критическое состояние' :
+      severity === 'warning' ? 'Внимание' :
+      severity === 'attention' ? 'Обратите внимание' : 'Норма',
     findings,
     emergency_flags: emergency,
     recommendations: emergency.length > 0 ? ['Требуется экстренная медицинская помощь'] :

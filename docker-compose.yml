@@ -25,20 +25,5 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  mcp:
-    build:
-      context: .
-      target: mcp
-    ports:
-      - "8103:8103"
-    volumes:
-      - aibolit-data:/app/data
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8103/health')"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-
 volumes:
   aibolit-data:

@@ -7,6 +7,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 from src.models.patient import (
     Patient, VitalSigns, LabResult, Diagnosis, Medication, Allergy, Gender, BloodType,
 )
+from .auth import _parse_date, _parse_gender, _parse_blood_type
 from src.utils.database import (
     list_patients, load_patient, save_patient, delete_patient,
     search_patients, add_vitals as db_add_vitals, add_lab_result as db_add_lab_result,
@@ -25,6 +26,9 @@ from ..schemas.patient import (
 )
 
 router = APIRouter(prefix="/patients", tags=["patients"])
+
+# Allowed sub-record table names (defense-in-depth, also validated in database.py)
+_ALLOWED_TABLES = {"allergies", "medications", "diagnoses", "lab_results", "vitals"}
 
 
 def _patient_to_response(p: Patient) -> PatientResponse:
@@ -104,29 +108,33 @@ def get_my_patient(current_user: dict = Depends(get_current_user)):
 
 
 @router.get("", response_model=list[PatientSummary])
-def get_patients():
+def get_patients(_: dict = Depends(get_current_user)):
     return list_patients()
 
 
 @router.get("/search", response_model=list[PatientSummary])
-def search(q: str = Query(..., min_length=1)):
+def search(q: str = Query(..., min_length=1), _: dict = Depends(get_current_user)):
     return search_patients(q)
 
 
 @router.get("/by-diagnosis", response_model=list[dict])
-def patients_by_diagnosis(icd10: str = Query(..., min_length=1)):
+def patients_by_diagnosis(icd10: str = Query(..., min_length=1), _: dict = Depends(get_current_user)):
     return get_patients_by_diagnosis(icd10)
 
 
 @router.post("", response_model=dict)
-def register_patient(req: RegisterPatientRequest):
+def register_patient(req: RegisterPatientRequest, _: dict = Depends(get_current_user)):
+    dob = _parse_date(req.date_of_birth)
+    gender = _parse_gender(req.gender)
+    blood_type = _parse_blood_type(req.blood_type)
+
     patient = Patient(
         id=str(uuid.uuid4())[:8],
         first_name=req.first_name,
         last_name=req.last_name,
-        date_of_birth=date.fromisoformat(req.date_of_birth),
-        gender=Gender(req.gender),
-        blood_type=BloodType(req.blood_type) if req.blood_type else None,
+        date_of_birth=dob,
+        gender=gender,
+        blood_type=blood_type,
         allergies=[
             Allergy(substance=a.substance, reaction=a.reaction, severity=a.severity)
             for a in req.allergies
@@ -250,6 +258,8 @@ def add_allergy(patient_id: str, req: AddAllergyRequest, current_user: dict | No
 
 @router.delete("/{patient_id}/{table}/{record_id}")
 def delete_record(patient_id: str, table: str, record_id: int, current_user: dict | None = Depends(get_optional_user)):
+    if table not in _ALLOWED_TABLES:
+        raise HTTPException(400, f"Недопустимая таблица: {table}")
     _check_patient_access(patient_id, current_user)
     try:
         if not delete_sub_record(patient_id, table, record_id):
@@ -265,6 +275,8 @@ def update_record(
     fields: dict = Body(...),
     current_user: dict | None = Depends(get_optional_user),
 ):
+    if table not in _ALLOWED_TABLES:
+        raise HTTPException(400, f"Недопустимая таблица: {table}")
     _check_patient_access(patient_id, current_user)
     try:
         if not update_sub_record(patient_id, table, record_id, fields):
@@ -288,10 +300,13 @@ def update_patient(patient_id: str, req: UpdatePatientRequest, current_user: dic
     if req.last_name is not None:
         core_fields["last_name"] = req.last_name
     if req.date_of_birth is not None:
+        _parse_date(req.date_of_birth)  # validate format
         core_fields["date_of_birth"] = req.date_of_birth
     if req.gender is not None:
+        _parse_gender(req.gender)  # validate enum
         core_fields["gender"] = req.gender
     if req.blood_type is not None:
+        _parse_blood_type(req.blood_type)  # validate enum
         core_fields["blood_type"] = req.blood_type if req.blood_type else None
     if req.notes is not None:
         core_fields["notes"] = req.notes

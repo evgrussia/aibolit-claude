@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { Menu } from 'lucide-react';
 import Sidebar from './Sidebar';
@@ -7,14 +7,17 @@ import Breadcrumbs from '../shared/Breadcrumbs';
 export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
+  const prevPathRef = useRef(location.pathname);
 
   const closeSidebar = useCallback(() => setSidebarOpen(false), []);
 
-  // Close sidebar on route change
-  const prevPath = useState(location.pathname)[0];
-  if (prevPath !== location.pathname && sidebarOpen) {
-    setSidebarOpen(false);
-  }
+  // Close sidebar on route change (mobile)
+  useEffect(() => {
+    if (prevPathRef.current !== location.pathname) {
+      setSidebarOpen(false);
+      prevPathRef.current = location.pathname;
+    }
+  }, [location.pathname]);
 
   return (
     <div className="flex min-h-screen">

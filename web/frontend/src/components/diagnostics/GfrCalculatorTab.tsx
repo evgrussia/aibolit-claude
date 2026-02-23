@@ -3,6 +3,7 @@ import { Droplets } from 'lucide-react';
 import Card from '../shared/Card.tsx';
 import InfoBanner from '../shared/InfoBanner.tsx';
 import HelpTooltip from '../shared/HelpTooltip.tsx';
+import MedicalDisclaimer from '../shared/MedicalDisclaimer.tsx';
 import { CKD_COLORS, CKD_STAGES } from '../../constants/medical.ts';
 import { calculateGfr, type GfrResponse } from '../../api/diagnostics.ts';
 
@@ -76,23 +77,26 @@ export default function GfrCalculatorTab() {
       </Card>
 
       {result && (
-        <Card title="Результат">
-          <div className="flex items-center gap-8">
-            <div className="text-center">
-              <div className="text-5xl font-bold" style={{ color }}>{result.gfr}</div>
-              <div className="text-sm text-gray-500 mt-1">мл/мин/1.73м²</div>
+        <>
+          <Card title="Результат">
+            <div className="flex items-center gap-8">
+              <div className="text-center">
+                <div className="text-5xl font-bold" style={{ color }}>{result.gfr}</div>
+                <div className="text-sm text-gray-500 mt-1">мл/мин/1.73м²</div>
+              </div>
+              <div>
+                <div className="text-xl font-semibold text-gray-800 mb-1">{result.stage}</div>
+                <div className="text-gray-600 mb-3">{result.description}</div>
+                {result.recommendations?.length > 0 && (
+                  <ul className="space-y-1">
+                    {result.recommendations.map((r, i) => <li key={i} className="text-sm text-blue-700">{r}</li>)}
+                  </ul>
+                )}
+              </div>
             </div>
-            <div>
-              <div className="text-xl font-semibold text-gray-800 mb-1">{result.stage}</div>
-              <div className="text-gray-600 mb-3">{result.description}</div>
-              {result.recommendations?.length > 0 && (
-                <ul className="space-y-1">
-                  {result.recommendations.map((r, i) => <li key={i} className="text-sm text-blue-700">{r}</li>)}
-                </ul>
-              )}
-            </div>
-          </div>
-        </Card>
+          </Card>
+          <MedicalDisclaimer type="lab_analysis" />
+        </>
       )}
     </div>
   );
