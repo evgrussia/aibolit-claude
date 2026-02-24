@@ -8,6 +8,8 @@ services:
     environment:
       - AIBOLIT_SECRET_KEY=${AIBOLIT_SECRET_KEY}
       - CLAUDE_CODE_OAUTH_TOKEN=${CLAUDE_CODE_OAUTH_TOKEN}
+      - WHO_ICD_CLIENT_ID=${WHO_ICD_CLIENT_ID}
+      - WHO_ICD_CLIENT_SECRET=${WHO_ICD_CLIENT_SECRET}
     restart: unless-stopped
     ports:
       - "127.0.0.1:8101:8007"
