@@ -20,7 +20,7 @@ from ..services.audit_service import AuditLogService
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
-MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10 MB
+MAX_UPLOAD_SIZE = 100 * 1024 * 1024  # 100 MB
 ALLOWED_CONTENT_TYPES = {
     "application/pdf", "image/jpeg", "image/png", "image/webp",
     "text/plain", "text/csv",

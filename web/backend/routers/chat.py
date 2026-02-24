@@ -35,7 +35,7 @@ _red_flag_detector = RedFlagDetector()
 
 # Attachment limits
 _MAX_FILES = 5
-_MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
+_MAX_FILE_SIZE = 100 * 1024 * 1024  # 100 MB
 _ALLOWED_TYPES = {
     "image/jpeg", "image/png", "image/gif", "image/webp",
     "application/pdf",
