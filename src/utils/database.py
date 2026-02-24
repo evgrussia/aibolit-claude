@@ -309,7 +309,9 @@ def init_db() -> None:
 
 def _migrate_add_columns(conn) -> None:
     """Add columns introduced after initial schema creation."""
-    inspector = inspect(engine)
+    inspector = inspect(conn)
+    if not inspector.has_table("users"):
+        return  # fresh DB — tables just created with all columns
     user_cols = {c["name"] for c in inspector.get_columns("users")}
     if "consent_personal_data" not in user_cols:
         conn.execute(text("ALTER TABLE users ADD COLUMN consent_personal_data BOOLEAN NOT NULL DEFAULT FALSE"))
