@@ -19,7 +19,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from src.utils.database import init_db, close_db
+from src.utils.database import init_db, close_db, cleanup_expired_tokens
 from .config import CORS_ORIGINS
 from .rate_limit import check_global_rate_limit
 from .routers import auth, patients, consultations, diagnostics, drugs, documents, reference, knowledge, chat, audit
@@ -34,11 +34,27 @@ logging.basicConfig(
 logger = logging.getLogger("aibolit")
 
 
+async def _token_cleanup_loop() -> None:
+    """Periodically remove expired revoked tokens (every 6 hours)."""
+    import asyncio
+    while True:
+        await asyncio.sleep(6 * 3600)
+        try:
+            removed = cleanup_expired_tokens()
+            if removed:
+                logger.info("[CLEANUP] Removed %d expired revoked tokens", removed)
+        except Exception:
+            logger.exception("[CLEANUP] Failed to clean expired tokens")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    import asyncio
     init_db()
     logger.info("Aibolit backend started (PostgreSQL)")
+    cleanup_task = asyncio.create_task(_token_cleanup_loop())
     yield
+    cleanup_task.cancel()
     close_db()
     logger.info("Aibolit backend shutting down")
 
@@ -74,6 +90,11 @@ async def rate_limit_middleware(request: Request, call_next):
         try:
             check_global_rate_limit(request)
         except HTTPException as exc:
+            client_ip = request.client.host if request.client else "?"
+            logger.warning(
+                "[RATE_LIMIT] 429 %s %s from=%s",
+                request.method, request.url.path, client_ip,
+            )
             return JSONResponse(status_code=429, content={"detail": exc.detail})
     return await call_next(request)
 

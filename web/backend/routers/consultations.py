@@ -34,7 +34,11 @@ class ConsultStartRequest(BaseModel):
 
 @router.post("/triage")
 def triage(req: TriageRequest):
-    """Analyze complaints and suggest the best specialist(s)."""
+    """Analyze complaints and suggest the best specialist(s).
+
+    NOTE: Intentionally public (no auth) — used on the landing page
+    before the user is registered. Does not expose patient data.
+    """
     if not req.complaints or len(req.complaints.strip()) < 3:
         raise HTTPException(400, "Опишите жалобы (минимум 3 символа)")
     matches = triage_engine.triage(req.complaints.strip(), top_n=3)

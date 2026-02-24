@@ -37,13 +37,27 @@ class RateLimiter:
         window_seconds: Time window in seconds.
     """
 
+    _EVICT_INTERVAL = 300.0  # evict stale buckets every 5 min
+
     def __init__(self, max_requests: int = 10, window_seconds: float = 60.0) -> None:
         self.max_requests = max_requests
         self.window = window_seconds
         self._buckets: dict[str, _Bucket] = defaultdict(_Bucket)
+        self._last_evict: float = time.monotonic()
+
+    def _evict_stale(self) -> None:
+        """Remove buckets with no recent timestamps to prevent memory growth."""
+        now = time.monotonic()
+        if now - self._last_evict < self._EVICT_INTERVAL:
+            return
+        self._last_evict = now
+        stale = [k for k, b in self._buckets.items() if b.count(self.window) == 0]
+        for k in stale:
+            del self._buckets[k]
 
     def check(self, key: str) -> None:
         """Raise HTTPException(429) if the key has exceeded the limit."""
+        self._evict_stale()
         bucket = self._buckets[key]
         if bucket.count(self.window) >= self.max_requests:
             raise HTTPException(
@@ -54,7 +68,15 @@ class RateLimiter:
 
 
 def _client_ip(request: Request) -> str:
-    """Extract client IP, respecting X-Forwarded-For behind reverse proxy."""
+    """Extract client IP from request.
+
+    In production Nginx sets X-Real-IP from the actual client address.
+    X-Forwarded-For is used as fallback but can be spoofed without
+    trusted proxy validation — Nginx config should strip/override it.
+    """
+    real_ip = request.headers.get("X-Real-IP")
+    if real_ip:
+        return real_ip.strip()
     forwarded = request.headers.get("X-Forwarded-For")
     if forwarded:
         return forwarded.split(",")[0].strip()

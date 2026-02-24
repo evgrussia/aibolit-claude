@@ -101,20 +101,3 @@ def get_current_user(request: Request) -> dict:
     }
 
 
-def get_optional_user(request: Request) -> dict | None:
-    """FastAPI dependency: extract Bearer token if present, return None otherwise."""
-    auth_header = request.headers.get("Authorization", "")
-    if not auth_header.startswith("Bearer "):
-        return None
-    token = auth_header[7:]
-    try:
-        payload = decode_token(token)
-        if payload.get("type") != "access":
-            return None
-        return {
-            "user_id": payload["user_id"],
-            "patient_id": payload.get("patient_id"),
-            "username": payload.get("username", ""),
-        }
-    except HTTPException:
-        return None
