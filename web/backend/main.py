@@ -7,6 +7,7 @@ import logging
 import sys
 import os
 import time
+import uuid
 from contextlib import asynccontextmanager
 
 # Ensure project root is in path so `src.*` imports work
@@ -20,7 +21,8 @@ from fastapi.responses import JSONResponse
 
 from src.utils.database import init_db
 from .config import CORS_ORIGINS
-from .routers import auth, patients, consultations, diagnostics, drugs, documents, reference, knowledge, chat
+from .routers import auth, patients, consultations, diagnostics, drugs, documents, reference, knowledge, chat, audit
+from .services.audit_service import request_id_var, request_ip_var, request_ua_var
 
 # ── Logging setup ──────────────────────────────────────────
 logging.basicConfig(
@@ -62,17 +64,37 @@ async def global_exception_handler(request: Request, exc: Exception):
     return JSONResponse(status_code=500, content={"detail": "Внутренняя ошибка сервера"})
 
 
-# ── Request logging middleware ─────────────────────────────
+# ── Request ID + audit context middleware ─────────────────
 @app.middleware("http")
-async def log_requests(request: Request, call_next):
+async def audit_context_middleware(request: Request, call_next):
+    """Генерирует request_id (UUID) для каждого запроса и сохраняет
+    метаданные в contextvars для доступа из AuditLogService."""
+    req_id = str(uuid.uuid4())
+    request.state.request_id = req_id
+
+    # Сохраняем в contextvars для доступа из любого места без передачи request
+    token_rid = request_id_var.set(req_id)
+    token_ip = request_ip_var.set(request.client.host if request.client else None)
+    token_ua = request_ua_var.set(request.headers.get("user-agent"))
+
     start = time.time()
     response = await call_next(request)
     duration = time.time() - start
+
+    # Добавляем request_id в заголовок ответа для трейсинга
+    response.headers["X-Request-ID"] = req_id
+
     if duration > 1.0 or response.status_code >= 400:
         logger.info(
-            "%s %s → %s (%.2fs)",
-            request.method, request.url.path, response.status_code, duration,
+            "%s %s → %s (%.2fs) [%s]",
+            request.method, request.url.path, response.status_code, duration, req_id,
         )
+
+    # Сбрасываем contextvars
+    request_id_var.reset(token_rid)
+    request_ip_var.reset(token_ip)
+    request_ua_var.reset(token_ua)
+
     return response
 
 app.include_router(auth.router, prefix="/api/v1")
@@ -84,6 +106,7 @@ app.include_router(documents.router, prefix="/api/v1")
 app.include_router(reference.router, prefix="/api/v1")
 app.include_router(knowledge.router, prefix="/api/v1")
 app.include_router(chat.router, prefix="/api/v1")
+app.include_router(audit.router, prefix="/api/v1")
 
 
 @app.get("/api/health")

@@ -1,0 +1,126 @@
+checkpoint:
+  id: "CP-000-intake-2025-02-24"
+  created_at: "2025-02-24"
+  created_by: "Orchestrator Agent"
+
+  phase: "Intake"
+  status: "completed"
+
+  summary: |
+    Проект Aibolit AI инициализирован. Это AI-клиника — веб-портал пациента
+    с 35 AI-врачами различных специализаций для информационных медицинских
+    консультаций на основе доказательной медицины.
+
+    MVP уже функционален: работает FastAPI backend (10 роутеров), React frontend
+    (15 страниц), мультитерновый AI-чат через Claude CLI с SSE-стримингом,
+    диагностические инструменты (расшифровка анализов, СКФ, кардиориск),
+    лекарственные инструменты (OpenFDA, RxNorm), медицинская база знаний
+    (PubMed, WHO ICD-11), система безопасности (red flags, дисклеймеры),
+    JWT-аутентификация и Docker-деплой.
+
+    Проект построен с нуля на FastAPI + React (без Django Starter Template).
+
+  participating_agents:
+    - agent: "Orchestrator"
+      contribution: "Инициализация проекта, создание Project Brief и Checkpoint #0"
+
+  artifacts:
+    - path: "context/project-brief.yaml"
+      status: "created"
+      summary: "Краткое описание проекта Level 0 — цель, scope, tech stack, архитектура, API, специализации"
+    - path: "context/checkpoints/CP-000-intake-2025-02-24.yaml"
+      status: "created"
+      summary: "Начальный checkpoint — Intake фаза"
+
+  decisions:
+    - id: "DEC-001"
+      decision: "Проект строится на FastAPI + React + SQLite, не на Django Starter Template"
+      rationale: "MVP уже реализован на этом стеке, миграция нецелесообразна"
+      stakeholder: "Разработчик"
+    - id: "DEC-002"
+      decision: "AI-движок — Claude CLI с session-id для мультитерновых чатов"
+      rationale: "Обеспечивает контекст разговора между сообщениями без собственной LLM-инфраструктуры"
+      stakeholder: "Разработчик"
+    - id: "DEC-003"
+      decision: "35 медицинских специализаций с самого начала"
+      rationale: "Каждая специализация — конфигурация (Specialization dataclass), не отдельный код"
+      stakeholder: "Разработчик"
+    - id: "DEC-004"
+      decision: "Целевой рынок — Россия, язык интерфейса — русский"
+      rationale: "Решение заказчика, клинрекомендации Минздрав РФ, 152-ФЗ"
+      stakeholder: "Заказчик"
+    - id: "DEC-005"
+      decision: "Бесплатный, некоммерческий проект — без монетизации"
+      rationale: "Решение заказчика"
+      stakeholder: "Заказчик"
+    - id: "DEC-006"
+      decision: "Модуль живого врача (doctor panel) НЕ нужен"
+      rationale: "Решение заказчика — проект полностью AI-based, без врачебного модуля"
+      stakeholder: "Заказчик"
+    - id: "DEC-007"
+      decision: "Приоритет — закрытие gaps безопасности, затем PWA"
+      rationale: "Безопасность медданных критична (152-ФЗ), затем WebApp для мобильного доступа"
+      stakeholder: "Заказчик"
+    - id: "DEC-008"
+      decision: "Дистрибуция — WebApp (PWA), нативное приложение не планируется"
+      rationale: "PWA обеспечивает мобильный доступ без App Store, достаточно для некоммерческого проекта"
+      stakeholder: "Заказчик"
+
+  existing_functionality:
+    backend:
+      - "10 API-роутеров: auth, patients, chat, consultations, diagnostics, drugs, documents, knowledge, reference"
+      - "AI Doctor Engine с клиническим рассуждением"
+      - "Сервис триажа (маршрутизация к специалисту)"
+      - "Сервис чата (Claude CLI + SSE streaming)"
+      - "Интеграции: PubMed, OpenFDA, RxNorm, WHO ICD-11"
+      - "Модели: Patient, VitalSigns, LabResult, Diagnosis, Medication"
+      - "Safety: red flags детекция, медицинские дисклеймеры"
+    frontend:
+      - "15 страниц: Login, Dashboard, Chat, ChatHistory, ConsultDoctor, Consultations, Diagnostics, Drugs, Documents, Labs, Vitals, Settings, HealthTimeline, DiagnosisDetail, PatientList"
+      - "Компоненты: формы (Add Vitals/Labs/Diagnosis/Medication/Allergy, EditProfile), charts (BP, LabTrend), gauges, specialty grid, triage result"
+      - "Shared UI: Card, Badge, Modal, Skeleton, LoadingSpinner, ErrorBoundary, MedicalDisclaimer, EmergencyBanner, Breadcrumbs, ConfirmDialog"
+      - "Auth: JWT context + Login/Register"
+    infrastructure:
+      - "Docker: backend + nginx"
+      - "SQLite WAL mode"
+
+  next_actions:
+    - action: "Security Agent → Аудит безопасности MVP (152-ФЗ, шифрование медданных)"
+      agent: "Security"
+      priority: 1
+    - action: "Coder Agent → Реализация шифрования медданных at rest"
+      agent: "Coder"
+      priority: 2
+    - action: "Coder Agent → Реализация AuditLogService для медицинских событий"
+      agent: "Coder"
+      priority: 3
+    - action: "QA Agent → Тесты red flags (false negative < 5%)"
+      agent: "QA"
+      priority: 4
+    - action: "QA Agent → Тесты дисклеймеров во всех AI-ответах"
+      agent: "QA"
+      priority: 5
+    - action: "Dev Agent → PWA manifest + service worker"
+      agent: "Dev"
+      priority: 6
+
+  blockers: []
+
+  gaps_identified:
+    - gap: "Нет аудит-логирования (AuditLogService)"
+      impact: "Нарушение правил rules/04-logging.md, невозможность отслеживать медицинские события"
+      priority: "high"
+    - gap: "Нет тестов для медицинских сценариев"
+      impact: "Невозможно гарантировать false negative < 5% для red flags"
+      priority: "high"
+    - gap: "Нет STARTER-TEMPLATE.md"
+      impact: "Минорное — проект не использует Django-шаблон"
+      priority: "low"
+
+  metrics:
+    completion_percentage: 15
+    documents_created: 2
+    decisions_made: 8
+    specializations_implemented: 35
+    api_routes_count: 10
+    frontend_pages_count: 15

@@ -61,6 +61,21 @@ export async function addAllergy(patientId: string, allergy: Record<string, unkn
   return data;
 }
 
+export async function parseLabFile(patientId: string, file: File) {
+  const formData = new FormData();
+  formData.append('file', file);
+  const { data } = await api.post(`/patients/${patientId}/labs/upload-parse`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 180_000,
+  });
+  return data;
+}
+
+export async function addLabResultsBulk(patientId: string, results: Record<string, unknown>[]) {
+  const { data } = await api.post(`/patients/${patientId}/labs/bulk`, { results });
+  return data;
+}
+
 export async function updatePatient(patientId: string, updates: Record<string, unknown>) {
   const { data } = await api.patch(`/patients/${patientId}`, updates);
   return data;

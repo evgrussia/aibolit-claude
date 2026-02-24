@@ -1,0 +1,161 @@
+checkpoint:
+  id: "CP-002-gaps-closure-2025-02-24"
+  created_at: "2025-02-24"
+  created_by: "Orchestrator Agent"
+
+  phase: "Development — Gap Closure"
+  status: "completed"
+
+  summary: |
+    Закрыты все 3 оставшихся gap'а проекта Aibolit AI:
+
+    1. AuditLogService (Coder Agent) — реализована полная система аудит-логирования:
+       SQLite-таблица audit_log с 15 колонками и 5 индексами, сервис с маскированием
+       23 защищённых полей, middleware с contextvars (request_id, IP, UA),
+       API-эндпоинты для просмотра и статистики логов.
+
+    2. Медицинские тесты (QA Agent) — 174 теста:
+       - 81 тест red flags (детекция по категориям, urgency levels, negative cases,
+         edge cases, false negative rate < 5%, регрессионные тесты).
+       - 93 теста дисклеймеров (типы, содержание, формат, enum).
+       - QA Agent обнаружил 5 regex-багов в red_flags.py.
+       - Все 5 багов исправлены Coder Agent.
+
+    3. PWA (Dev Agent) — manifest.json, service worker (cache-first static,
+       network-first API, offline fallback), иконки, meta-теги, регистрация SW.
+
+  participating_agents:
+    - agent: "Orchestrator"
+      contribution: "Координация, декомпозиция задач, checkpoint"
+    - agent: "Coder"
+      contribution: "AuditLogService, фикс 5 regex-багов в red_flags.py"
+    - agent: "QA"
+      contribution: "174 теста (81 red flags + 93 дисклеймеров), обнаружение 5 regex-багов"
+    - agent: "Dev"
+      contribution: "PWA manifest, service worker, offline page, иконки"
+
+  artifacts:
+    # AuditLogService
+    - path: "web/backend/services/audit_service.py"
+      status: "created"
+      summary: "AuditLogService — аудит-логирование с маскированием, contextvars, декоратор @audit_task"
+    - path: "web/backend/routers/audit.py"
+      status: "created"
+      summary: "API-эндпоинты: GET /api/v1/audit/logs (фильтрация, пагинация), GET /api/v1/audit/logs/stats"
+    - path: "src/utils/database.py"
+      status: "updated"
+      summary: "Миграция v3: таблица audit_log (15 колонок, 5 индексов)"
+    - path: "web/backend/main.py"
+      status: "updated"
+      summary: "Middleware audit_context_middleware (UUID request_id, contextvars), подключение audit router"
+
+    # Медицинские тесты
+    - path: "tests/__init__.py"
+      status: "created"
+      summary: "Init для test package"
+    - path: "tests/test_red_flags.py"
+      status: "created"
+      summary: "81 тест red flags: категории, urgency, negative, edge cases, FN rate, регрессионные"
+    - path: "tests/test_disclaimers.py"
+      status: "created"
+      summary: "93 теста дисклеймеров: типы, содержание, формат, enum"
+
+    # Фикс regex-багов
+    - path: "src/safety/red_flags.py"
+      status: "updated"
+      summary: "Исправлены 5 regex-багов: BUG-001..005 (основы слов, порядок слов, предлоги)"
+
+    # PWA
+    - path: "web/frontend/public/manifest.json"
+      status: "created"
+      summary: "PWA manifest: 'Айболит — AI-клиника', standalone, theme_color #0ea5e9"
+    - path: "web/frontend/public/sw.js"
+      status: "created"
+      summary: "Service worker: cache-first static, network-first API, offline fallback"
+    - path: "web/frontend/public/offline.html"
+      status: "created"
+      summary: "Оффлайн-страница на русском языке"
+    - path: "web/frontend/public/icons/"
+      status: "created"
+      summary: "SVG + PNG иконки (192x192, 512x512)"
+    - path: "web/frontend/index.html"
+      status: "updated"
+      summary: "PWA meta-теги (manifest, theme-color, apple-mobile-web-app)"
+    - path: "web/frontend/src/main.tsx"
+      status: "updated"
+      summary: "Регистрация service worker"
+
+  decisions:
+    - id: "DEC-009"
+      decision: "AuditLogService хранит логи в SQLite (таблица audit_log), не в отдельном файле"
+      rationale: "Единая БД, простой запрос и фильтрация, совместимость с WAL mode"
+      stakeholder: "Coder Agent"
+    - id: "DEC-010"
+      decision: "Маскирование 23 защищённых полей (пароли, токены, медданные) в audit logs"
+      rationale: "Требование rules/04-logging.md и rules/05-medical-safety.md"
+      stakeholder: "Coder Agent"
+    - id: "DEC-011"
+      decision: "PWA с cache-first для статики и network-first для API"
+      rationale: "Оптимальный баланс скорости загрузки и актуальности данных"
+      stakeholder: "Dev Agent"
+
+  bugs_fixed:
+    - id: "BUG-001"
+      file: "src/safety/red_flags.py"
+      description: "Паттерн 'давит' не matchил 'давление' → заменён на 'давл\\w*'"
+    - id: "BUG-002"
+      file: "src/safety/red_flags.py"
+      description: "Паттерн 'онемени' не matchил 'Онемение' → заменён на 'онемени\\w*'"
+    - id: "BUG-003"
+      file: "src/safety/red_flags.py"
+      description: "Паттерн 'доскообразн\\w*\\s+живот' не matchил обратный порядок → добавлена альтернатива"
+    - id: "BUG-004"
+      file: "src/safety/red_flags.py"
+      description: "Паттерн 'давлени' в HIGH не matchил 'Давление' → заменён на 'давлени\\w*'"
+    - id: "BUG-005"
+      file: "src/safety/red_flags.py"
+      description: "Паттерн 'рвот\\w*\\s+кров' не matchил 'Рвота с кровью' → заменён на 'рвот\\w*\\s+.*кров'"
+
+  test_results:
+    total: 174
+    passed: 174
+    failed: 0
+    false_negative_rate: "0% (0/40 кейсов)"
+
+  next_actions:
+    - action: "QA Agent → E2E тесты основных сценариев"
+      agent: "QA"
+      priority: 1
+    - action: "Dev Agent → Мобильная адаптация интерфейса"
+      agent: "Dev"
+      priority: 2
+    - action: "Dev Agent → Offline-режим для базовых справочников"
+      agent: "Dev"
+      priority: 3
+    - action: "QA Agent → Performance оптимизация"
+      agent: "QA"
+      priority: 4
+
+  blockers: []
+
+  gaps_status:
+    - gap: "AuditLogService"
+      status: "CLOSED"
+      resolved_by: "Coder Agent"
+    - gap: "Тесты медицинских сценариев (red flags + дисклеймеры)"
+      status: "CLOSED"
+      resolved_by: "QA Agent + Coder Agent (bug fixes)"
+    - gap: "PWA manifest + service worker"
+      status: "CLOSED"
+      resolved_by: "Dev Agent"
+
+  metrics:
+    completion_percentage: 55
+    documents_created: 25
+    decisions_made: 14
+    phases_completed: 4
+    agents_participated: 13
+    tests_total: 174
+    bugs_found_and_fixed: 5
+    gaps_closed: 3
+    gaps_remaining: 0

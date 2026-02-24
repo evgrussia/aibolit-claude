@@ -1,7 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, FlaskConical, HeartPulse,
-  Stethoscope, Activity, Pill, FileText, Heart,
+  Activity, Pill, FileText, Heart,
   MessageSquare, MessageCircle, Clock, LogOut, X, User, Settings,
 } from 'lucide-react';
 import clsx from 'clsx';
@@ -74,9 +74,6 @@ export default function Sidebar({ onClose }: SidebarProps) {
             </NavLink>
             <NavLink to={`/patients/${patientId}/vitals`} className={navClass} onClick={handleNavClick}>
               <HeartPulse size={18} /> Витальные
-            </NavLink>
-            <NavLink to={`/patients/${patientId}/consultations`} className={navClass} onClick={handleNavClick}>
-              <Stethoscope size={18} /> Консультации
             </NavLink>
           </>
         )}

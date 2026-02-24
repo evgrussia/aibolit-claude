@@ -1,0 +1,39 @@
+phase_summary:
+  phase: "Design"
+  status: "completed"
+  duration: "2025-02-24"
+
+  key_outcomes:
+    - "5 User Flows задокументированы (регистрация→консультация, жалоба→чат, витальные→диагностика, лекарства→взаимодействия, red flag→экстренное предупреждение)"
+    - "Information Architecture: 15 страниц в 3 разделах (Мои данные / Инструменты / Системные)"
+    - "Design System: 30+ компонентов, 6 принципов дизайна, медицинские UI-паттерны"
+    - "Content Guide: tone of voice, 8 шаблонов дисклеймеров, допустимые/запрещённые формулировки AI"
+    - "Accessibility: WCAG 2.1 AA, responsive breakpoints, mobile-first для PWA"
+
+  key_decisions:
+    - id: "DES-001"
+      decision: "6 принципов дизайна: Доверие, Чистота, Доступность, Безопасность, Понятность, Mobile-first"
+      rationale: "Медицинский контекст требует доверия и понятности"
+    - id: "DES-002"
+      decision: "Медицинские UI-паттерны: MedicalDisclaimer, EmergencyBanner, severity badges, confidence levels"
+      rationale: "Стандартизация отображения медицинской информации"
+    - id: "DES-003"
+      decision: "Навигация через Sidebar с 3 группами: Мои данные, Инструменты, Системные"
+      rationale: "Логическая группировка для пациента"
+
+  artifacts:
+    - path: "docs/design/user-flows.md"
+      type: "User Flows"
+      summary: "5 user flows, sitemap, IA, навигационная модель, матрица переходов"
+    - path: "docs/design/design-system.md"
+      type: "Design System"
+      summary: "Палитра, типографика, 30+ компонентов, a11y, responsive, мед. UI-паттерны"
+    - path: "docs/design/content-guide.md"
+      type: "Content Guide"
+      summary: "Tone of voice, дисклеймеры, формулировки AI, микрокопия, health literacy"
+
+  dependencies_for_next:
+    - "Design System → основа для фронтенд-разработки и PWA"
+    - "Content Guide → правила формулировок для AI-промптов"
+
+  blockers: []

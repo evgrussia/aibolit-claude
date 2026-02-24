@@ -145,6 +145,7 @@ async def _run_claude_stream(cmd: list[str]) -> AsyncIterator[str]:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             env=env,
+            limit=100 * 1024 * 1024,  # 100 MB — default 64KB too small for large JSON lines
         )
 
         assert proc.stdout is not None

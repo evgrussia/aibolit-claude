@@ -11,8 +11,10 @@ import Modal from '../components/shared/Modal';
 import LoadingSpinner from '../components/shared/LoadingSpinner';
 import ApiError from '../components/shared/ApiError';
 import AddLabResultForm from '../components/forms/AddLabResultForm';
+import LabFileUpload from '../components/forms/LabFileUpload';
 import ConfirmDialog from '../components/shared/ConfirmDialog';
-import { FlaskConical, TrendingUp, Plus, Trash2 } from 'lucide-react';
+import { parseLabFile } from '../api/patients';
+import { FlaskConical, TrendingUp, Plus, Upload, Trash2 } from 'lucide-react';
 import { formatDate } from '../utils/formatters';
 import type { LabResult } from '../types/patient';
 
@@ -22,6 +24,8 @@ export default function LabResultsPage() {
   const [selectedTest, setSelectedTest] = useState('');
   const { data: trendData = [] } = useLabTrends(patientId, selectedTest);
   const [showForm, setShowForm] = useState(false);
+  const [showUpload, setShowUpload] = useState(false);
+  const [isFileParsing, setIsFileParsing] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: number; label: string } | null>(null);
   const mutations = usePatientMutations(patientId);
   const toast = useToast();
@@ -36,6 +40,25 @@ export default function LabResultsPage() {
       await mutations.lab.mutateAsync(data);
       toast.success('Результат анализа добавлен');
       setShowForm(false);
+    } catch (err) {
+      toast.error((err as Error).message || 'Ошибка сохранения');
+    }
+  };
+
+  const handleParse = async (file: File) => {
+    setIsFileParsing(true);
+    try {
+      return await parseLabFile(patientId!, file);
+    } finally {
+      setIsFileParsing(false);
+    }
+  };
+
+  const handleBulkConfirm = async (results: Record<string, unknown>[]) => {
+    try {
+      await mutations.labBulk.mutateAsync(results);
+      toast.success(`Добавлено ${results.length} результатов`);
+      setShowUpload(false);
     } catch (err) {
       toast.error((err as Error).message || 'Ошибка сохранения');
     }
@@ -64,6 +87,12 @@ export default function LabResultsPage() {
         </h1>
         <div className="flex items-center gap-3">
           <span className="text-sm text-gray-400">{patient.lab_results.length} результатов</span>
+          <button
+            onClick={() => setShowUpload(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 border border-medical-teal text-medical-teal rounded-lg text-sm font-medium hover:bg-medical-teal/5 transition-colors"
+          >
+            <Upload size={14} /> Загрузить файл
+          </button>
           <button
             onClick={() => setShowForm(true)}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-medical-teal text-white rounded-lg text-sm font-medium hover:bg-medical-teal/90 transition-colors"
@@ -143,6 +172,16 @@ export default function LabResultsPage() {
 
       <Modal isOpen={showForm} onClose={() => setShowForm(false)} title="Добавить результат анализа">
         <AddLabResultForm onSubmit={handleSubmit} isPending={mutations.lab.isPending} />
+      </Modal>
+
+      <Modal isOpen={showUpload} onClose={() => { if (!isFileParsing && !mutations.labBulk.isPending) setShowUpload(false); }} title="Загрузить результаты из файла">
+        <LabFileUpload
+          onParse={handleParse}
+          onConfirm={handleBulkConfirm}
+          onCancel={() => setShowUpload(false)}
+          isParsing={isFileParsing}
+          isSaving={mutations.labBulk.isPending}
+        />
       </Modal>
 
       <ConfirmDialog

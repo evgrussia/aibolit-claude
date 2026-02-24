@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  addVitals, addLabResult, addDiagnosis, addMedication, addAllergy, updatePatient,
+  addVitals, addLabResult, addLabResultsBulk, addDiagnosis, addMedication, addAllergy, updatePatient,
   deleteSubRecord, updateSubRecord,
 } from '../api/patients';
 
@@ -20,6 +20,11 @@ export function usePatientMutations(patientId: string | undefined) {
 
   const lab = useMutation({
     mutationFn: (data: Record<string, unknown>) => addLabResult(patientId!, data),
+    onSuccess: invalidate,
+  });
+
+  const labBulk = useMutation({
+    mutationFn: (results: Record<string, unknown>[]) => addLabResultsBulk(patientId!, results),
     onSuccess: invalidate,
   });
 
@@ -55,5 +60,5 @@ export function usePatientMutations(patientId: string | undefined) {
     onSuccess: invalidate,
   });
 
-  return { vitals, lab, diagnosis, medication, allergy, profile, deleteRecord, updateRecord };
+  return { vitals, lab, labBulk, diagnosis, medication, allergy, profile, deleteRecord, updateRecord };
 }

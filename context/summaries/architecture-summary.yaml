@@ -1,0 +1,58 @@
+phase_summary:
+  phase: "Architecture"
+  status: "completed"
+  duration: "2025-02-24"
+
+  key_outcomes:
+    - "System Design: полная архитектура с ASCII-диаграммами — Frontend, Backend, AI Engine, интеграции, деплой"
+    - "Data Model: 15+ сущностей, ER-диаграмма, стратегия шифрования Fernet/AES-256, планируемая модель AuditLog"
+    - "API Contracts: все эндпоинты 9 роутеров с примерами request/response, SSE-формат чата"
+    - "Security Requirements: STRIDE (24 угрозы), 152-ФЗ checklist, OWASP Top 10, adversarial inputs"
+    - "4 ADR: FastAPI vs Django, Claude CLI vs API, SQLite vs PostgreSQL, медицинская безопасность"
+
+  key_decisions:
+    - id: "ADR-001"
+      decision: "FastAPI вместо Django"
+      rationale: "SSE streaming, asyncio subprocess, простая модель данных"
+    - id: "ADR-002"
+      decision: "Claude CLI с session-id"
+      rationale: "Контекст разговора без собственной LLM-инфраструктуры"
+    - id: "ADR-003"
+      decision: "SQLite для MVP"
+      rationale: "Zero-config, WAL mode, достаточно для некоммерческого проекта"
+    - id: "ADR-004"
+      decision: "Трёхуровневая медицинская безопасность (Input → AI → Output)"
+      rationale: "Input sanitization + red flags, system prompt safety, disclaimers + emergency"
+
+  artifacts:
+    - path: "docs/architecture/system-design.md"
+      type: "System Design"
+      summary: "Архитектура системы, data flow, AI pipeline, деплой, масштабируемость"
+    - path: "docs/architecture/data-model.md"
+      type: "Data Model"
+      summary: "ER-диаграмма, 15+ сущностей, шифрование, AuditLog DDL"
+    - path: "docs/architecture/api-contracts.md"
+      type: "API Contracts"
+      summary: "Все эндпоинты, JWT auth, rate limiting, SSE формат"
+    - path: "docs/architecture/security-requirements.md"
+      type: "Security Requirements"
+      summary: "STRIDE, 152-ФЗ, OWASP Top 10, аудит, adversarial inputs"
+    - path: "docs/architecture/adrs/ADR-001-fastapi-over-django.md"
+      type: "ADR"
+      summary: "FastAPI vs Django"
+    - path: "docs/architecture/adrs/ADR-002-claude-cli-ai-engine.md"
+      type: "ADR"
+      summary: "Claude CLI vs прямой API"
+    - path: "docs/architecture/adrs/ADR-003-sqlite-database.md"
+      type: "ADR"
+      summary: "SQLite vs PostgreSQL"
+    - path: "docs/architecture/adrs/ADR-004-medical-safety-system.md"
+      type: "ADR"
+      summary: "Трёхуровневая система медбезопасности"
+
+  dependencies_for_next:
+    - "Security Requirements → приоритет закрытия gaps (шифрование, аудит, тесты)"
+    - "Data Model + AuditLog DDL → реализация Coder Agent"
+    - "API Contracts → контракт для фронтенда"
+
+  blockers: []

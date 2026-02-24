@@ -2,7 +2,7 @@
 import uuid
 from datetime import date, datetime
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, UploadFile, File
 
 from src.models.patient import (
     Patient, VitalSigns, LabResult, Diagnosis, Medication, Allergy, Gender, BloodType,
@@ -20,7 +20,8 @@ from src.utils.database import (
 from ..auth import get_current_user, get_optional_user
 from ..schemas.patient import (
     PatientSummary, PatientResponse, RegisterPatientRequest,
-    AddVitalsRequest, AddLabResultRequest, AddDiagnosisRequest, AddMedicationRequest,
+    AddVitalsRequest, AddLabResultRequest, BulkAddLabResultsRequest,
+    AddDiagnosisRequest, AddMedicationRequest,
     AddAllergyRequest, UpdatePatientRequest,
     AllergySchema, MedicationSchema, DiagnosisSchema, LabResultSchema, VitalSignsSchema,
 )
@@ -194,6 +195,80 @@ def add_lab(patient_id: str, req: AddLabResultRequest, current_user: dict | None
     except ValueError as e:
         raise HTTPException(404, str(e))
     return {"id": row_id, "message": f"Результат '{req.test_name}' добавлен"}
+
+
+_ALLOWED_UPLOAD_TYPES = {
+    "text/csv", "text/plain", "text/tab-separated-values",
+    "application/pdf",
+    "image/jpeg", "image/png", "image/webp",
+}
+_MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10 MB
+
+
+@router.post("/{patient_id}/labs/upload-parse")
+async def parse_lab_file(
+    patient_id: str,
+    file: UploadFile = File(...),
+    current_user: dict | None = Depends(get_optional_user),
+):
+    _check_patient_access(patient_id, current_user)
+    if not load_patient(patient_id):
+        raise HTTPException(404, f"Пациент {patient_id} не найден")
+
+    # Validate content type
+    ct = (file.content_type or "").lower()
+    filename = file.filename or "upload"
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+
+    # Accept by MIME or extension
+    ext_to_mime = {"csv": "text/csv", "txt": "text/plain", "tsv": "text/tab-separated-values",
+                   "pdf": "application/pdf", "jpg": "image/jpeg", "jpeg": "image/jpeg",
+                   "png": "image/png", "webp": "image/webp"}
+    effective_ct = ct if ct in _ALLOWED_UPLOAD_TYPES else ext_to_mime.get(ext, ct)
+
+    if effective_ct not in _ALLOWED_UPLOAD_TYPES:
+        raise HTTPException(400, f"Неподдерживаемый формат файла. Допустимы: PDF, JPEG, PNG, WEBP, CSV, TXT")
+
+    content = await file.read()
+    if len(content) > _MAX_UPLOAD_SIZE:
+        raise HTTPException(400, "Файл слишком большой (максимум 10 МБ)")
+
+    from ..services.lab_parser_service import parse_csv, parse_with_ai
+
+    if effective_ct in {"text/csv", "text/plain", "text/tab-separated-values"}:
+        result = parse_csv(content, filename)
+    else:
+        result = await parse_with_ai(content, filename, effective_ct)
+
+    result["source_file"] = filename
+    return result
+
+
+@router.post("/{patient_id}/labs/bulk")
+def add_labs_bulk(
+    patient_id: str,
+    req: BulkAddLabResultsRequest,
+    current_user: dict | None = Depends(get_optional_user),
+):
+    _check_patient_access(patient_id, current_user)
+    if not load_patient(patient_id):
+        raise HTTPException(404, f"Пациент {patient_id} не найден")
+
+    ids: list[int] = []
+    for item in req.results:
+        lr = LabResult(
+            test_name=item.test_name,
+            value=item.value,
+            unit=item.unit,
+            reference_range=item.reference_range,
+            date=date.today(),
+        )
+        try:
+            row_id = db_add_lab_result(patient_id, lr)
+            ids.append(row_id)
+        except ValueError as e:
+            raise HTTPException(404, str(e))
+    return {"ids": ids, "count": len(ids), "message": f"Добавлено {len(ids)} результатов"}
 
 
 @router.post("/{patient_id}/diagnoses")

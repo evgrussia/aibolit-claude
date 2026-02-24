@@ -112,6 +112,10 @@ class AddLabResultRequest(BaseModel):
     reference_range: str = ""
 
 
+class BulkAddLabResultsRequest(BaseModel):
+    results: list[AddLabResultRequest]
+
+
 class AddDiagnosisRequest(BaseModel):
     icd10_code: str
     name: str

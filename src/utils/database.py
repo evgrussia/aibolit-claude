@@ -269,6 +269,37 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
         conn.commit()
         print("[Aibolit] Applied migration v2: chat tables", file=sys.stderr)
 
+    if current_version < 3:
+        # Migration v3: audit logging table
+        conn.executescript("""
+            CREATE TABLE IF NOT EXISTS audit_log (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp       TEXT NOT NULL DEFAULT (datetime('now')),
+                level           TEXT NOT NULL DEFAULT 'INFO',
+                category        TEXT NOT NULL DEFAULT 'general',
+                action          TEXT NOT NULL,
+                message         TEXT,
+                entity_type     TEXT,
+                entity_id       TEXT,
+                actor_type      TEXT DEFAULT 'system',
+                actor_id        TEXT,
+                actor_name      TEXT,
+                data            TEXT,
+                request_id      TEXT,
+                ip_address      TEXT,
+                user_agent      TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_audit_log_timestamp ON audit_log(timestamp);
+            CREATE INDEX IF NOT EXISTS idx_audit_log_action ON audit_log(action);
+            CREATE INDEX IF NOT EXISTS idx_audit_log_category ON audit_log(category);
+            CREATE INDEX IF NOT EXISTS idx_audit_log_entity ON audit_log(entity_type, entity_id);
+            CREATE INDEX IF NOT EXISTS idx_audit_log_actor ON audit_log(actor_id);
+        """)
+
+        conn.execute("INSERT OR IGNORE INTO schema_version (version) VALUES (3)")
+        conn.commit()
+        print("[Aibolit] Applied migration v3: audit_log table", file=sys.stderr)
+
 
 def init_db() -> None:
     """Create all tables if they don't exist. Auto-migrates JSON data on first run."""

@@ -1,0 +1,129 @@
+project_brief:
+  name: "Aibolit AI — AI-клиника"
+  goal: "Веб-портал пациента с AI-врачами 35 специализаций для информационных медицинских консультаций на основе доказательной медицины"
+  target_users: "Русскоязычные пациенты (рынок РФ), желающие получить предварительную информационную оценку симптомов, расшифровку анализов и рекомендации по обращению к профильному специалисту"
+  target_market: "Россия"
+  monetization: "Бесплатный, некоммерческий проект"
+  distribution: "WebApp (PWA)"
+
+  scope:
+    in:
+      - "AI-чат с врачами 35 медицинских специализаций (от терапевта до генетика)"
+      - "Мультитерновые консультации через Claude CLI с SSE-стримингом"
+      - "Интеллектуальная маршрутизация (триаж) к нужному специалисту"
+      - "Портал пациента: профиль, витальные показатели, лабораторные анализы, диагнозы, назначения"
+      - "Диагностические инструменты: расшифровка анализов, оценка витальных, расчёт СКФ, кардиоваскулярный риск"
+      - "Лекарственные инструменты: поиск препаратов (OpenFDA), проверка взаимодействий (RxNorm)"
+      - "Медицинская база знаний: PubMed, WHO ICD-11, ClinicalTrials.gov, SNOMED CT"
+      - "Система безопасности: детекция red flags, обязательные дисклеймеры, эскалация к врачу"
+      - "Управление документами: направления, рецепты, медицинские заключения"
+      - "JWT-аутентификация с регистрацией пациентов"
+      - "История консультаций и чатов"
+    out:
+      - "Постановка окончательных диагнозов (только информационная оценка)"
+      - "Назначение лечения и выписка рецептов с юридической силой"
+      - "Экстренная медицинская помощь (перенаправление на 103/112)"
+      - "Обработка реальных медицинских изображений (DICOM)"
+      - "Интеграция с МИС / ЭМК реальных клиник"
+      - "Телемедицинские видео-консультации"
+      - "Биллинг и страховые случаи"
+      - "Модуль живого врача (doctor panel) — не нужен"
+      - "Нативное мобильное приложение (будет PWA)"
+
+  constraints:
+    - "Все ответы AI содержат обязательные медицинские дисклеймеры (rules/05-medical-safety.md)"
+    - "AI НИКОГДА не ставит окончательных диагнозов и не назначает лечение"
+    - "Red flags детектируются с false negative < 5% и инициируют эскалацию"
+    - "Медицинские данные — специальная категория ПД (152-ФЗ)"
+    - "Retention медицинских логов — 5 лет"
+    - "Только доказательная медицина (PubMed, Cochrane, клинрекомендации Минздрав РФ)"
+
+  tech_stack:
+    frontend: "React 18 + Vite + Tailwind CSS v3 + TypeScript"
+    backend: "FastAPI (Python 3.12) + Uvicorn"
+    ai_engine: "Claude CLI (claude) с --session-id для мультитерновых чатов, SSE streaming"
+    database: "SQLite (WAL mode) — data/aibolit.db"
+    medical_apis:
+      - "PubMed (NCBI E-utilities)"
+      - "OpenFDA (лекарства, побочные эффекты)"
+      - "RxNorm (NLM — нормализация препаратов, взаимодействия)"
+      - "WHO ICD-11 (классификация болезней)"
+      - "ClinicalTrials.gov (клинические исследования)"
+    auth: "JWT (PyJWT) + SHA-256 salted passwords"
+
+  architecture:
+    mcp_server: "src/mcp_server.py — MCP-сервер с медицинскими инструментами"
+    ai_doctor_engine: "src/agents/doctor.py — движок клинического рассуждения"
+    specializations: "src/agents/specializations.py — реестр 35 специализаций"
+    safety_module: "src/safety/ — red_flags.py (детекция), disclaimers.py (дисклеймеры)"
+    integrations: "src/integrations/ — PubMed, OpenFDA, RxNorm, WHO ICD"
+    patient_model: "src/models/patient.py — Patient, VitalSigns, LabResult, Diagnosis, Medication"
+    web_backend: "web/backend/ — FastAPI (main.py, routers/, services/, auth.py)"
+    web_frontend: "web/frontend/ — React SPA (pages/, components/, contexts/)"
+
+  api_routes:
+    auth: "/api/v1/auth/ — register, login, me"
+    patients: "/api/v1/patients/ — CRUD пациентов, витальные, анализы, диагнозы, назначения"
+    consultations: "/api/v1/consultations/ — AI-консультации"
+    chat: "/api/v1/chat/ — мультитерновый чат с AI-врачом (SSE)"
+    diagnostics: "/api/v1/diagnostics/ — анализ анализов, витальных, СКФ, кардиориск"
+    drugs: "/api/v1/drugs/ — поиск препаратов, проверка взаимодействий"
+    documents: "/api/v1/documents/ — медицинские документы"
+    knowledge: "/api/v1/knowledge/ — PubMed, ICD, клинические исследования"
+    reference: "/api/v1/reference/ — справочники (специализации, лаб. тесты)"
+
+  specializations_count: 35
+  specializations_list:
+    - "Терапевт, Кардиолог, Невролог, Пульмонолог, Гастроэнтеролог"
+    - "Эндокринолог, Нефролог, Ревматолог, Онколог, Гематолог"
+    - "Дерматолог, Офтальмолог, ЛОР, Уролог, Гинеколог"
+    - "Педиатр, Психиатр, Травматолог-ортопед, Хирург, Аллерголог-иммунолог"
+    - "Инфекционист, Кардиохирург, Нейрохирург, Сосудистый хирург, Реаниматолог"
+    - "Радиолог, Патологоанатом, Клинический фармаколог, Реабилитолог, Генетик"
+    - "Стоматолог, Диетолог, Спортивный врач, Гериатр, Врач скорой помощи"
+
+  starter_template:
+    reference: "НЕ ИСПОЛЬЗУЕТСЯ — проект создан с нуля на FastAPI + React (не на Django-шаблоне)"
+    components_keep:
+      - "JWT-аутентификация (auth.py — собственная реализация)"
+      - "Дизайн-система (Tailwind CSS v3 + собственные shared-компоненты)"
+    components_existing:
+      - "MCP-сервер с медицинскими инструментами (src/mcp_server.py)"
+      - "AI Doctor Engine — движок клинического рассуждения (src/agents/)"
+      - "35 медицинских специализаций (src/agents/specializations.py)"
+      - "Система безопасности: red flags + дисклеймеры (src/safety/)"
+      - "Медицинские API-интеграции: PubMed, OpenFDA, RxNorm, WHO ICD (src/integrations/)"
+      - "Модели данных: Patient, VitalSigns, LabResult, Diagnosis, Medication (src/models/)"
+      - "FastAPI backend: 10 роутеров (auth, patients, chat, consultations, diagnostics, drugs, documents, knowledge, reference, chat)"
+      - "React frontend: 15 страниц (Login, Dashboard, Chat, Consultations, Diagnostics, Drugs, Documents, Labs, Vitals, Settings и др.)"
+      - "Docker-compose: backend + nginx"
+    components_to_add:
+      - "Аудит-логирование (AuditLogService — по правилам rules/04-logging.md)"
+      - "Тесты медицинских сценариев (red flags, дисклеймеры)"
+      - "PWA-манифест и сервис-воркер для WebApp"
+
+  priority_roadmap:
+    phase_1_gaps:
+      description: "Закрытие пробелов безопасности и качества"
+      items:
+        - "AuditLogService — аудит-логирование медицинских событий — HIGH"
+        - "Тесты red flags (false negative < 5%) — HIGH"
+        - "Тесты дисклеймеров (присутствуют во всех ответах AI) — HIGH"
+    phase_2_pwa:
+      description: "WebApp / PWA"
+      items:
+        - "PWA manifest + service worker"
+        - "Мобильная адаптация интерфейса"
+        - "Offline-режим для базовых справочников"
+    phase_3_polish:
+      description: "Доработки и стабилизация"
+      items:
+        - "E2E тесты основных сценариев"
+        - "Performance оптимизация"
+        - "Доступность (a11y)"
+
+  current_phase: "Development"
+  status: "MVP функционален — портал пациента с AI-чатом, диагностикой и лекарственными инструментами работает"
+
+  created_at: "2025-02-24"
+  created_by: "Orchestrator Agent"
