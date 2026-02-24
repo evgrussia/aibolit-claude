@@ -133,6 +133,7 @@ def register(req: RegisterRequest, request: Request):
         logger.exception("Failed to create user: %s", req.username)
         raise HTTPException(500, "Ошибка при создании аккаунта")
 
+    logger.info("[REGISTER] user=%s, patient=%s", req.username, patient_id)
     token = create_token(user_id, patient_id, username=req.username)
     return AuthResponse(token=token, patient_id=patient_id, username=req.username)
 
@@ -143,8 +144,10 @@ def login(req: LoginRequest, request: Request):
 
     user = get_user_by_username(req.username)
     if not user or not verify_password(req.password, user["password_hash"]):
+        logger.warning("[LOGIN_FAIL] user=%s", req.username)
         raise HTTPException(401, "Неверный логин или пароль")
 
+    logger.info("[LOGIN] user=%s, patient=%s", user["username"], user["patient_id"])
     token = create_token(user["id"], user["patient_id"], username=user["username"])
     return AuthResponse(
         token=token,

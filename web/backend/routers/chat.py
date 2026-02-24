@@ -71,14 +71,25 @@ async def create_chat(
         raise HTTPException(503, "AI-сервис временно недоступен (Claude CLI не найден)")
 
     patient_id = current_user.get("patient_id")
+    logger.info(
+        "[CHAT_CREATE] patient=%s, specialty=%s, complaints_len=%d",
+        patient_id, req.specialty, len(req.complaints),
+    )
+
     patient_context = "Карта пациента не загружена"
     if patient_id:
         patient = load_patient(patient_id)
         if patient:
             patient_context = patient.summary()
+            logger.info("[CHAT_CREATE] Patient card loaded: %d chars", len(patient_context))
 
     session_id = str(uuid.uuid4())
     safe_complaints = chat_service.sanitize_user_input(req.complaints.strip())
+
+    logger.info(
+        "[CHAT_CREATE] session=%s, red_flags=%d, emergency=%s",
+        session_id, len(flags) if flags else 0, bool(emergency_data),
+    )
 
     # Create consultation in DB
     title = safe_complaints[:80]
@@ -157,8 +168,13 @@ async def create_chat(
         full_text = "".join(full_text_parts)
         if full_text:
             msg_id = add_chat_message(consultation_id, "assistant", full_text)
+            logger.info(
+                "[CHAT_CREATE_DONE] consultation=%s, response_len=%d, msg_id=%s",
+                consultation_id, len(full_text), msg_id,
+            )
             yield f"event: done\ndata: {json.dumps({'message_id': msg_id, 'full_text': full_text}, ensure_ascii=False)}\n\n"
         else:
+            logger.warning("[CHAT_CREATE_EMPTY] consultation=%s, empty AI response", consultation_id)
             yield f"event: error\ndata: {json.dumps({'error': 'Пустой ответ от AI'}, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
@@ -188,6 +204,11 @@ async def send_chat_message(
     session_id = consultation.get("session_id")
     if not session_id:
         raise HTTPException(400, "Консультация не поддерживает чат")
+
+    logger.info(
+        "[CHAT_MSG] consultation=%s, session=%s, patient=%s, text_len=%d, files=%d",
+        consultation_id, session_id, patient_id, len(text.strip()), len(files),
+    )
 
     if not text.strip() and not files:
         raise HTTPException(400, "Сообщение не может быть пустым")
@@ -293,8 +314,13 @@ async def send_chat_message(
         full_text = "".join(full_text_parts)
         if full_text:
             msg_id = add_chat_message(consultation_id, "assistant", full_text)
+            logger.info(
+                "[CHAT_MSG_DONE] consultation=%s, response_len=%d, msg_id=%s",
+                consultation_id, len(full_text), msg_id,
+            )
             yield f"event: done\ndata: {json.dumps({'message_id': msg_id, 'full_text': full_text}, ensure_ascii=False)}\n\n"
         else:
+            logger.warning("[CHAT_MSG_EMPTY] consultation=%s, empty AI response", consultation_id)
             yield f"event: error\ndata: {json.dumps({'error': 'Пустой ответ от AI'}, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")

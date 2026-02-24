@@ -77,6 +77,18 @@ async def audit_context_middleware(request: Request, call_next):
     token_ip = request_ip_var.set(request.client.host if request.client else None)
     token_ua = request_ua_var.set(request.headers.get("user-agent"))
 
+    client_ip = request.client.host if request.client else "?"
+    user_agent = request.headers.get("user-agent", "?")[:100]
+    path = request.url.path
+    method = request.method
+
+    # Логируем входящие запросы (кроме health check)
+    if path != "/api/health":
+        logger.info(
+            "[REQ] %s %s from=%s ua=%.60s rid=%s",
+            method, path, client_ip, user_agent, req_id[:8],
+        )
+
     start = time.time()
     response = await call_next(request)
     duration = time.time() - start
@@ -84,10 +96,13 @@ async def audit_context_middleware(request: Request, call_next):
     # Добавляем request_id в заголовок ответа для трейсинга
     response.headers["X-Request-ID"] = req_id
 
-    if duration > 1.0 or response.status_code >= 400:
-        logger.info(
-            "%s %s → %s (%.2fs) [%s]",
-            request.method, request.url.path, response.status_code, duration, req_id,
+    # Логируем все ответы (кроме health check)
+    if path != "/api/health":
+        level = logging.WARNING if response.status_code >= 400 else logging.INFO
+        logger.log(
+            level,
+            "[RES] %s %s → %s (%.2fs) rid=%s",
+            method, path, response.status_code, duration, req_id[:8],
         )
 
     # Сбрасываем contextvars
