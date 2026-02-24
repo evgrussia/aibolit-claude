@@ -1,6 +1,6 @@
 """Patient database — backward-compatible wrapper.
 
-Delegates all CRUD operations to the SQLite-backed database module.
+Delegates all CRUD operations to the PostgreSQL-backed database module.
 Retains JSON serialization helpers (_dict_to_patient, _patient_to_dict)
 for use by the migration script.
 """

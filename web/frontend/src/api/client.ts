@@ -12,10 +12,15 @@ const PATIENT_KEY = 'aibolit_patient_id';
 const USERNAME_KEY = 'aibolit_username';
 
 let isRefreshing = false;
-let refreshSubscribers: ((token: string) => void)[] = [];
+let refreshSubscribers: { resolve: (token: string) => void; reject: (err: unknown) => void }[] = [];
 
 function onRefreshed(token: string) {
-  refreshSubscribers.forEach(cb => cb(token));
+  refreshSubscribers.forEach(s => s.resolve(token));
+  refreshSubscribers = [];
+}
+
+function onRefreshFailed(err: unknown) {
+  refreshSubscribers.forEach(s => s.reject(err));
   refreshSubscribers = [];
 }
 
@@ -49,10 +54,13 @@ api.interceptors.response.use(
 
       if (isRefreshing) {
         // Wait for the refresh to complete
-        return new Promise(resolve => {
-          refreshSubscribers.push((newToken: string) => {
-            originalRequest.headers.Authorization = `Bearer ${newToken}`;
-            resolve(api(originalRequest));
+        return new Promise((resolve, reject) => {
+          refreshSubscribers.push({
+            resolve: (newToken: string) => {
+              originalRequest.headers.Authorization = `Bearer ${newToken}`;
+              resolve(api(originalRequest));
+            },
+            reject,
           });
         });
       }
@@ -68,7 +76,7 @@ api.interceptors.response.use(
         return api(originalRequest);
       } catch {
         isRefreshing = false;
-        refreshSubscribers = [];
+        onRefreshFailed(err);
         clearAuth();
         return Promise.reject(err);
       }

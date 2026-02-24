@@ -1,6 +1,6 @@
 """AuditLogService — сервис аудит-логирования для Aibolit AI.
 
-Записывает события в таблицу audit_log (SQLite) и в Python logger.
+Записывает события в таблицу audit_log (PostgreSQL) и в Python logger.
 Маскирует чувствительные данные. Не бросает исключения наружу.
 """
 import asyncio
@@ -96,7 +96,7 @@ class AuditLogService:
         data: dict | None = None,
         request: Any = None,
     ) -> None:
-        """Записывает лог-событие в SQLite и в Python logger.
+        """Записывает лог-событие в PostgreSQL и в Python logger.
 
         Не бросает исключений наружу — при ошибке записи только логирует в stderr.
         """

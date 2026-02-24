@@ -38,13 +38,6 @@ engine = create_engine(
     echo=False,
 )
 
-# Legacy compatibility — kept for audit_service.py and other imports
-DB_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-    "data", "aibolit.db",
-)
-
-
 def get_connection():
     """Get a database connection from the pool.
 
@@ -217,6 +210,9 @@ _TABLES_SQL = [
         username        TEXT UNIQUE NOT NULL,
         password_hash   TEXT NOT NULL,
         patient_id      TEXT REFERENCES patients(id),
+        consent_personal_data   BOOLEAN NOT NULL DEFAULT FALSE,
+        consent_medical_ai      BOOLEAN NOT NULL DEFAULT FALSE,
+        consent_at              TIMESTAMP,
         created_at      TIMESTAMP NOT NULL DEFAULT NOW()
     )
     """,
@@ -293,11 +289,25 @@ _TABLES_SQL = [
 
 
 def init_db() -> None:
-    """Create all tables if they don't exist."""
+    """Create all tables if they don't exist, then run migrations."""
     with engine.begin() as conn:
         for sql in _TABLES_SQL:
             conn.execute(text(sql))
+        # Migrations: add columns that may not exist on older schemas
+        _migrate_add_columns(conn)
     logger.info("Database initialized (PostgreSQL)")
+
+
+def _migrate_add_columns(conn) -> None:
+    """Add columns introduced after initial schema creation."""
+    inspector = inspect(engine)
+    user_cols = {c["name"] for c in inspector.get_columns("users")}
+    if "consent_personal_data" not in user_cols:
+        conn.execute(text("ALTER TABLE users ADD COLUMN consent_personal_data BOOLEAN NOT NULL DEFAULT FALSE"))
+    if "consent_medical_ai" not in user_cols:
+        conn.execute(text("ALTER TABLE users ADD COLUMN consent_medical_ai BOOLEAN NOT NULL DEFAULT FALSE"))
+    if "consent_at" not in user_cols:
+        conn.execute(text("ALTER TABLE users ADD COLUMN consent_at TIMESTAMP"))
 
 
 # ══════════════════════════════════════════════════════════════
@@ -927,7 +937,7 @@ def get_lab_trends(patient_id: str, test_name: str, limit: int = 20) -> list[dic
             "reference_range": r["reference_range"],
             "date": r["date"],
             "is_abnormal": bool(r["is_abnormal"]),
-            "notes": r["notes"],
+            "notes": decrypt_field(r["notes"]),
         }
         for r in rows
     ]
@@ -992,12 +1002,25 @@ def get_patients_by_diagnosis(icd10_prefix: str) -> list[dict]:
 # User management
 # ══════════════════════════════════════════════════════════════
 
-def create_user(username: str, password_hash: str, patient_id: str | None = None) -> int:
+def create_user(
+    username: str,
+    password_hash: str,
+    patient_id: str | None = None,
+    consent_personal_data: bool = False,
+    consent_medical_ai: bool = False,
+) -> int:
     """Create a new user. Returns user ID."""
     with engine.begin() as conn:
         result = conn.execute(
-            text("INSERT INTO users (username, password_hash, patient_id) VALUES (:u, :ph, :pid) RETURNING id"),
-            {"u": username, "ph": password_hash, "pid": patient_id},
+            text(
+                "INSERT INTO users (username, password_hash, patient_id, "
+                "consent_personal_data, consent_medical_ai, consent_at) "
+                "VALUES (:u, :ph, :pid, :cpd, :cma, NOW()) RETURNING id"
+            ),
+            {
+                "u": username, "ph": password_hash, "pid": patient_id,
+                "cpd": consent_personal_data, "cma": consent_medical_ai,
+            },
         )
     return result.scalar()
 
@@ -1081,7 +1104,10 @@ def list_documents(patient_id: str) -> list[dict]:
                 FROM documents WHERE patient_id = :pid ORDER BY uploaded_at DESC"""),
             {"pid": patient_id},
         ).mappings().all()
-    return [dict(r) for r in rows]
+    docs = [dict(r) for r in rows]
+    for d in docs:
+        d["notes"] = decrypt_field(d.get("notes"))
+    return docs
 
 
 def get_document(doc_id: int) -> dict | None:
@@ -1097,6 +1123,7 @@ def get_document(doc_id: int) -> dict | None:
     # Ensure content is bytes (PostgreSQL BYTEA returns memoryview)
     if isinstance(result.get("content"), memoryview):
         result["content"] = bytes(result["content"])
+    result["notes"] = decrypt_field(result.get("notes"))
     return result
 
 

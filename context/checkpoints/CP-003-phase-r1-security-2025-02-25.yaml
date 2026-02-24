@@ -1,0 +1,198 @@
+checkpoint:
+  id: "CP-003-phase-r1-security-2025-02-25"
+  created_at: "2025-02-25"
+  created_by: "Orchestrator Agent"
+  git_commit: "2d8f182"
+
+  phase: "Development — Phase R1 Security Refactoring"
+  status: "completed"
+
+  summary: |
+    Phase R1: Критический рефакторинг безопасности Aibolit AI.
+    Выполнены 5 задач по результатам аудита backend/frontend:
+
+    R1.0 — Миграция SQLite → PostgreSQL + SQLAlchemy Core.
+    Полная перезапись src/utils/database.py (1725 строк), Docker-compose
+    с PostgreSQL-сервисом, скрипт миграции данных, .env.example.
+
+    R1.1 — Шифрование медицинских данных at rest (Fernet AES-128-CBC + HMAC-SHA256).
+    Создан src/utils/encryption.py. Зашифрованы 10+ полей: notes, complaints,
+    response, content, descriptions, lifestyle, genetic markers.
+    Backward compatible (enc: prefix), graceful degradation без ключа.
+
+    R1.2 — Интеграция AuditLogService во все 6 роутеров:
+    auth (5 событий), patients (10+ событий), chat (4 события),
+    consultations (3 события), documents (3 события), drugs (1 событие).
+
+    R1.4 — JWT refresh tokens: access 15 min + refresh 7 дней.
+    POST /auth/refresh endpoint. Frontend: auto-refresh interceptor
+    с queue pattern для concurrent requests.
+
+    R1.5 — Информированное согласие (152-ФЗ compliance):
+    Backend валидация consent_personal_data + consent_medical_ai.
+    Frontend: 4-шаговая регистрация с обязательными чекбоксами.
+
+  participating_agents:
+    - agent: "Orchestrator"
+      contribution: "Аудит, декомпозиция на 5 задач R1.0-R1.5, координация"
+    - agent: "Coder"
+      contribution: "Реализация всех 5 задач: PostgreSQL, encryption, audit, refresh tokens, consent"
+    - agent: "Review"
+      contribution: "Верификация TypeScript-сборки и E2E тестов"
+
+  artifacts:
+    # R1.0: PostgreSQL Migration
+    - path: "src/utils/database.py"
+      status: "rewritten"
+      summary: "Полная перезапись: sqlite3 → SQLAlchemy 2.x Core + PostgreSQL"
+    - path: "web/backend/config.py"
+      status: "updated"
+      summary: "DATABASE_URL, ENCRYPTION_KEY, SECRET_KEY из env vars"
+    - path: "docker-compose.yml"
+      status: "updated"
+      summary: "Добавлен PostgreSQL-сервис с volume"
+    - path: "docker-compose.prod.yml"
+      status: "updated"
+      summary: "Добавлен PostgreSQL-сервис для production"
+    - path: "Dockerfile"
+      status: "updated"
+      summary: "Добавлены psycopg2 build dependencies"
+    - path: "scripts/migrate_sqlite_to_postgres.py"
+      status: "created"
+      summary: "Скрипт миграции данных из SQLite в PostgreSQL"
+    - path: ".env.example"
+      status: "created"
+      summary: "Шаблон переменных окружения (DATABASE_URL, SECRET_KEY, ENCRYPTION_KEY)"
+    - path: "requirements.txt"
+      status: "updated"
+      summary: "Добавлены: sqlalchemy>=2.0, psycopg2-binary, cryptography>=42.0.0"
+
+    # R1.1: Encryption
+    - path: "src/utils/encryption.py"
+      status: "created"
+      summary: "Fernet AES-128 encrypt/decrypt с enc: prefix, backward compat"
+
+    # R1.2: Audit Integration
+    - path: "web/backend/routers/auth.py"
+      status: "updated"
+      summary: "AuditLogService: user_registered, login_failed, user_logged_in, password_changed, account_deleted"
+    - path: "web/backend/routers/patients.py"
+      status: "updated"
+      summary: "AuditLogService: patient CRUD, vitals, labs, diagnoses, medications, allergies"
+    - path: "web/backend/routers/chat.py"
+      status: "updated"
+      summary: "AuditLogService: consultation created, red_flag_detected, AI response, closed"
+    - path: "web/backend/routers/consultations.py"
+      status: "updated"
+      summary: "AuditLogService: triage_completed, red_flag_detected, ai_consultation_completed"
+    - path: "web/backend/routers/documents.py"
+      status: "updated"
+      summary: "AuditLogService: document upload, download, delete"
+    - path: "web/backend/routers/drugs.py"
+      status: "updated"
+      summary: "AuditLogService: drug_interactions_checked"
+    - path: "web/backend/routers/audit.py"
+      status: "updated"
+      summary: "Расширены API-эндпоинты аудит-логов для PostgreSQL"
+    - path: "web/backend/services/audit_service.py"
+      status: "updated"
+      summary: "AuditLogService адаптирован под PostgreSQL/SQLAlchemy"
+
+    # R1.4: Refresh Tokens
+    - path: "web/backend/auth.py"
+      status: "updated"
+      summary: "create_access_token (15min), create_refresh_token (7d), decode_token"
+    - path: "web/frontend/src/api/client.ts"
+      status: "rewritten"
+      summary: "Auto-refresh 401 interceptor с queue pattern, clearAuth()"
+    - path: "web/frontend/src/api/auth.ts"
+      status: "updated"
+      summary: "refreshTokens() function, refresh_token в AuthResponse"
+
+    # R1.5: Informed Consent
+    - path: "web/frontend/src/contexts/AuthContext.tsx"
+      status: "updated"
+      summary: "REFRESH_KEY в localStorage, consent fields в RegisterData"
+    - path: "web/frontend/src/pages/LoginPage.tsx"
+      status: "updated"
+      summary: "4-шаговая регистрация: шаг 4 — два обязательных consent checkbox"
+    - path: "web/backend/main.py"
+      status: "updated"
+      summary: "PostgreSQL init_db() вместо SQLite ensure_schema()"
+
+  decisions:
+    - id: "DEC-012"
+      decision: "Миграция на PostgreSQL + SQLAlchemy Core (не ORM)"
+      rationale: "Production-grade СУБД с ACID, шифрованием, concurrent access. Core вместо ORM для минимального рефакторинга существующего кода"
+      stakeholder: "Architect + Coder"
+    - id: "DEC-013"
+      decision: "Fernet AES-128 с enc: prefix для field-level encryption"
+      rationale: "Стандарт cryptography library, backward compat с незашифрованными данными, graceful degradation в dev-режиме"
+      stakeholder: "Security + Coder"
+    - id: "DEC-014"
+      decision: "Шифрование только narrative-полей (notes, complaints, content), не structured (ICD codes, dates, numbers)"
+      rationale: "Баланс безопасности и searchability — SQL-запросы по структурированным данным продолжают работать"
+      stakeholder: "Security + Data"
+    - id: "DEC-015"
+      decision: "Access token 15 min + Refresh token 7 дней"
+      rationale: "Стандартный паттерн: короткие access для безопасности, длинные refresh для UX. Auto-refresh interceptor прозрачен для пользователя"
+      stakeholder: "Security + Coder"
+    - id: "DEC-016"
+      decision: "4-шаговая регистрация с обязательным informed consent"
+      rationale: "Требование 152-ФЗ (ст.9) и rules/05-medical-safety.md. Двойная валидация: frontend + backend"
+      stakeholder: "Compliance + Coder"
+
+  test_results:
+    e2e_tests:
+      - test: "Регистрация без согласий → 400"
+        status: "passed"
+      - test: "Регистрация с одним согласием → 400"
+        status: "passed"
+      - test: "Регистрация с обоими согласиями → 200 (token + refresh_token)"
+        status: "passed"
+      - test: "Дубликат username → 409"
+        status: "passed"
+      - test: "/auth/me с новым токеном → 200"
+        status: "passed"
+      - test: "/auth/refresh → 200 (новая пара токенов)"
+        status: "passed"
+      - test: "Vite proxy → backend → 200"
+        status: "passed"
+      - test: "TypeScript compilation → 0 errors"
+        status: "passed"
+
+  changes_stats:
+    files_changed: 23
+    files_created: 3
+    lines_added: 1721
+    lines_removed: 978
+
+  next_actions:
+    - action: "Обновить project-brief.yaml (tech_stack: PostgreSQL, bcrypt, refresh tokens)"
+      agent: "Orchestrator"
+      priority: 1
+    - action: "Code Review Phase R1"
+      agent: "Review"
+      priority: 2
+    - action: "E2E тесты: auth flow, encryption round-trip, audit log verification"
+      agent: "QA"
+      priority: 3
+    - action: "Dead code cleanup (SQLite remnants, unused imports)"
+      agent: "Coder"
+      priority: 4
+    - action: "Мобильная адаптация интерфейса"
+      agent: "Dev"
+      priority: 5
+
+  blockers: []
+
+  metrics:
+    completion_percentage: 60
+    documents_created: 28
+    decisions_made: 16
+    phases_completed: 5
+    agents_participated: 15
+    tests_total: 182
+    bugs_found_and_fixed: 5
+    security_tasks_completed: 5
+    security_tasks_remaining: 0

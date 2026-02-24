@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from src.models.patient import Patient, Gender, BloodType, Allergy
 from src.utils.database import (
     save_patient, create_user, get_user_by_username, get_user_by_id,
-    link_user_to_patient, update_user_password, delete_user,
+    update_user_password, delete_user,
 )
 from ..auth import (
     hash_password, verify_password, create_token, get_current_user,
@@ -149,7 +149,11 @@ def register(req: RegisterRequest, request: Request):
     # Create user linked to patient — handle UNIQUE constraint race condition
     pw_hash = hash_password(req.password)
     try:
-        user_id = create_user(req.username, pw_hash, patient_id)
+        user_id = create_user(
+            req.username, pw_hash, patient_id,
+            consent_personal_data=req.consent_personal_data,
+            consent_medical_ai=req.consent_medical_ai,
+        )
     except Exception as e:
         if "UNIQUE" in str(e).upper() or "unique" in str(e).lower():
             raise HTTPException(409, "Пользователь с таким логином уже существует")

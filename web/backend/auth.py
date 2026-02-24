@@ -90,6 +90,8 @@ def get_current_user(request: Request) -> dict:
         raise HTTPException(401, "Требуется авторизация")
     token = auth_header[7:]
     payload = decode_token(token)
+    if payload.get("type") != "access":
+        raise HTTPException(401, "Ожидается access-токен")
     return {
         "user_id": payload["user_id"],
         "patient_id": payload.get("patient_id"),
@@ -105,6 +107,8 @@ def get_optional_user(request: Request) -> dict | None:
     token = auth_header[7:]
     try:
         payload = decode_token(token)
+        if payload.get("type") != "access":
+            return None
         return {
             "user_id": payload["user_id"],
             "patient_id": payload.get("patient_id"),

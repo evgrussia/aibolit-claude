@@ -42,14 +42,16 @@ project_brief:
     frontend: "React 18 + Vite + Tailwind CSS v3 + TypeScript"
     backend: "FastAPI (Python 3.12) + Uvicorn"
     ai_engine: "Claude CLI (claude) с --session-id для мультитерновых чатов, SSE streaming"
-    database: "SQLite (WAL mode) — data/aibolit.db"
+    database: "PostgreSQL 16 + SQLAlchemy 2.x Core"
     medical_apis:
       - "PubMed (NCBI E-utilities)"
       - "OpenFDA (лекарства, побочные эффекты)"
       - "RxNorm (NLM — нормализация препаратов, взаимодействия)"
       - "WHO ICD-11 (классификация болезней)"
       - "ClinicalTrials.gov (клинические исследования)"
-    auth: "JWT (PyJWT) + SHA-256 salted passwords"
+    auth: "JWT (PyJWT) + bcrypt, access tokens (15min) + refresh tokens (7d)"
+    encryption: "Fernet AES-128-CBC (field-level encryption для медданных)"
+    compliance: "152-ФЗ informed consent при регистрации"
 
   architecture:
     mcp_server: "src/mcp_server.py — MCP-сервер с медицинскими инструментами"
@@ -123,7 +125,8 @@ project_brief:
         - "Доступность (a11y)"
 
   current_phase: "Development"
-  status: "MVP функционален — портал пациента с AI-чатом, диагностикой и лекарственными инструментами работает"
+  status: "Phase R1 Security Refactoring завершён — PostgreSQL, encryption at rest, audit logging, refresh tokens, informed consent. MVP функционален."
+  last_checkpoint: "CP-003-phase-r1-security-2025-02-25"
 
   created_at: "2025-02-24"
   created_by: "Orchestrator Agent"

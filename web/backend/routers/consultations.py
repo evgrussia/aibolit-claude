@@ -168,6 +168,14 @@ async def start_consultation(
             {"category": f.category, "description": f.description, "urgency": int(f.urgency), "action": f.action}
             for f in flags
         ]
+        AuditLogService.log_medical(
+            "red_flag_detected",
+            data={"specialty": req.specialty, "patient_id": req.patient_id,
+                  "flags_count": len(flags), "emergency": bool(immediate),
+                  "categories": [f.category for f in flags]},
+            actor="system",
+            level="WARNING",
+        )
 
     logger.info("AI consultation generated for specialty=%s", req.specialty)
 

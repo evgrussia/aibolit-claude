@@ -299,6 +299,13 @@ async def send_chat_message(
     # Save user message to DB
     user_msg_id = add_chat_message(consultation_id, "user", safe_text or "[файл]")
 
+    AuditLogService.log_medical(
+        "chat_message_sent",
+        data={"consultation_id": consultation_id, "patient_id": patient_id,
+              "message_id": user_msg_id, "has_files": bool(saved_files)},
+        actor=current_user,
+    )
+
     # Save attachments
     for sf in saved_files:
         save_chat_attachment(
@@ -395,6 +402,12 @@ async def send_chat_message(
             logger.info(
                 "[CHAT_MSG_DONE] consultation=%s, response_len=%d, msg_id=%s",
                 consultation_id, len(full_text), msg_id,
+            )
+            AuditLogService.log_medical(
+                "ai_chat_response_generated",
+                data={"consultation_id": consultation_id, "patient_id": patient_id,
+                      "message_id": msg_id, "response_length": len(full_text)},
+                actor="system",
             )
             yield f"event: done\ndata: {json.dumps({'message_id': msg_id, 'full_text': full_text}, ensure_ascii=False)}\n\n"
 
