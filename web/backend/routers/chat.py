@@ -274,6 +274,22 @@ async def send_chat_message(
 
     full_prompt = "\n".join(prompt_parts)
 
+    # Prepare fallback context in case session was lost (container rebuild)
+    spec = get_specialization(consultation["specialty"])
+    fallback_patient_context = "Карта пациента не загружена"
+    if patient_id:
+        p = load_patient(patient_id)
+        if p:
+            fallback_patient_context = p.summary()
+    fallback_system_prompt = chat_service.build_system_prompt(
+        specialty_name=spec.name_ru if spec else consultation["specialty"],
+        patient_context=fallback_patient_context,
+        specialization=spec,
+    )
+    # Load chat history for session recovery
+    history_rows = get_chat_messages(consultation_id)
+    chat_history = [{"role": m["role"], "text": m["text"]} for m in history_rows]
+
     # Red flags on user text
     flags = _red_flag_detector.detect(safe_text) if safe_text else []
     red_flags_data = None
@@ -303,7 +319,12 @@ async def send_chat_message(
 
         full_text_parts: list[str] = []
         try:
-            async for chunk in chat_service.send_message(session_id, full_prompt):
+            async for chunk in chat_service.send_message(
+                session_id,
+                full_prompt,
+                system_prompt=fallback_system_prompt,
+                chat_history=chat_history,
+            ):
                 full_text_parts.append(chunk)
                 yield f"event: delta\ndata: {json.dumps({'text': chunk}, ensure_ascii=False)}\n\n"
         except Exception:

@@ -132,8 +132,18 @@ async def start_session(
         yield chunk
 
 
-async def send_message(session_id: str, message: str) -> AsyncIterator[str]:
-    """Continue an existing session with a new message (streaming)."""
+async def send_message(
+    session_id: str,
+    message: str,
+    *,
+    system_prompt: str = "",
+    chat_history: list[dict] | None = None,
+) -> AsyncIterator[str]:
+    """Continue an existing session with a new message (streaming).
+
+    If --resume fails (session lost after container rebuild), automatically
+    falls back to a new session with conversation history rebuilt from DB.
+    """
     cmd = [
         "claude", "--print", "--verbose",
         "--resume", session_id,
@@ -147,8 +157,57 @@ async def send_message(session_id: str, message: str) -> AsyncIterator[str]:
         session_id, len(message),
     )
 
+    # Try resume first
+    chunks: list[str] = []
+    resume_failed = False
+
     async for chunk in _run_claude_stream(cmd, session_id=session_id, action="resume"):
+        chunks.append(chunk)
         yield chunk
+
+    # If no output was produced, check if resume failed (session lost)
+    if not chunks and system_prompt and chat_history is not None:
+        logger.warning(
+            "[SESSION_LOST] session=%s, falling back to new session with %d history messages",
+            session_id, len(chat_history),
+        )
+        resume_failed = True
+
+    if resume_failed:
+        # Rebuild context: system prompt + previous messages + new message
+        history_text = _rebuild_history(chat_history)
+        full_prompt = f"{system_prompt}\n\n{history_text}\nПациент: {message}"
+
+        new_session_id = session_id  # reuse same ID for new session
+        fallback_cmd = [
+            "claude", "--print", "--verbose",
+            "--model", _MODEL,
+            "--session-id", new_session_id,
+            "--max-turns", "3",
+            "--output-format", "stream-json",
+            full_prompt,
+        ]
+
+        logger.info(
+            "[SESSION_REBUILD] session=%s, history_msgs=%d, prompt_len=%d",
+            new_session_id, len(chat_history), len(full_prompt),
+        )
+
+        async for chunk in _run_claude_stream(fallback_cmd, session_id=new_session_id, action="rebuild"):
+            yield chunk
+
+
+def _rebuild_history(messages: list[dict]) -> str:
+    """Rebuild conversation history from DB messages for session recovery."""
+    parts: list[str] = []
+    for msg in messages:
+        role = msg.get("role", "user")
+        text = msg.get("text", "")[:2000]  # truncate long messages
+        if role == "user":
+            parts.append(f"Пациент: {text}")
+        elif role == "assistant":
+            parts.append(f"Врач: {text}")
+    return "\n\n".join(parts)
 
 
 async def send_message_sync(session_id: str, message: str) -> str:
