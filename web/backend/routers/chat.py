@@ -103,11 +103,6 @@ async def create_chat(
     session_id = str(uuid.uuid4())
     safe_complaints = chat_service.sanitize_user_input(req.complaints.strip())
 
-    logger.info(
-        "[CHAT_CREATE] session=%s, red_flags=%d, emergency=%s",
-        session_id, len(flags) if flags else 0, bool(emergency_data),
-    )
-
     # Create consultation in DB
     title = safe_complaints[:80]
     consultation_id = create_chat_consultation(
@@ -125,6 +120,12 @@ async def create_chat(
     flags = _red_flag_detector.detect(safe_complaints)
     red_flags_data = None
     emergency_data = None
+
+    logger.info(
+        "[CHAT_CREATE] session=%s, red_flags=%d, emergency=%s",
+        session_id, len(flags) if flags else 0, False,
+    )
+
     if flags:
         red_flags_data = [
             {"category": f.category, "description": f.description, "urgency": int(f.urgency), "action": f.action}
