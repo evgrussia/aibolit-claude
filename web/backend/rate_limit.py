@@ -64,6 +64,7 @@ def _client_ip(request: Request) -> str:
 # Pre-configured limiters
 auth_limiter = RateLimiter(max_requests=10, window_seconds=60)      # 10 req/min
 register_limiter = RateLimiter(max_requests=5, window_seconds=300)   # 5 reg / 5 min
+global_limiter = RateLimiter(max_requests=60, window_seconds=60)    # 60 req/min per IP
 
 
 def check_auth_rate_limit(request: Request) -> None:
@@ -74,3 +75,8 @@ def check_auth_rate_limit(request: Request) -> None:
 def check_register_rate_limit(request: Request) -> None:
     """Check registration rate limit for the requesting IP."""
     register_limiter.check(_client_ip(request))
+
+
+def check_global_rate_limit(request: Request) -> None:
+    """Check global API rate limit for the requesting IP."""
+    global_limiter.check(_client_ip(request))

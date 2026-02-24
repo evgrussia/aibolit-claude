@@ -15,12 +15,13 @@ _project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from src.utils.database import init_db, close_db
 from .config import CORS_ORIGINS
+from .rate_limit import check_global_rate_limit
 from .routers import auth, patients, consultations, diagnostics, drugs, documents, reference, knowledge, chat, audit
 from .services.audit_service import request_id_var, request_ip_var, request_ua_var
 
@@ -63,6 +64,18 @@ app.add_middleware(
 async def global_exception_handler(request: Request, exc: Exception):
     logger.exception("Unhandled error on %s %s", request.method, request.url.path)
     return JSONResponse(status_code=500, content={"detail": "Внутренняя ошибка сервера"})
+
+
+# ── Global rate limit middleware ──────────────────────────
+@app.middleware("http")
+async def rate_limit_middleware(request: Request, call_next):
+    """Enforce global rate limit (60 req/min per IP) on all /api/ endpoints."""
+    if request.url.path.startswith("/api/") and request.url.path != "/api/health":
+        try:
+            check_global_rate_limit(request)
+        except HTTPException as exc:
+            return JSONResponse(status_code=429, content={"detail": exc.detail})
+    return await call_next(request)
 
 
 # ── Request ID + audit context middleware ─────────────────

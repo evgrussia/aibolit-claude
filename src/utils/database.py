@@ -285,6 +285,15 @@ _TABLES_SQL = [
     "CREATE INDEX IF NOT EXISTS idx_audit_log_category ON audit_log(category)",
     "CREATE INDEX IF NOT EXISTS idx_audit_log_entity ON audit_log(entity_type, entity_id)",
     "CREATE INDEX IF NOT EXISTS idx_audit_log_actor ON audit_log(actor_id)",
+    """
+    CREATE TABLE IF NOT EXISTS revoked_tokens (
+        jti             TEXT PRIMARY KEY,
+        user_id         INTEGER NOT NULL,
+        revoked_at      TIMESTAMP NOT NULL DEFAULT NOW(),
+        expires_at      TIMESTAMP NOT NULL
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_revoked_tokens_expires ON revoked_tokens(expires_at)",
 ]
 
 
@@ -1071,6 +1080,39 @@ def delete_user(user_id: int) -> bool:
             text("DELETE FROM users WHERE id = :uid"), {"uid": user_id}
         )
     return result.rowcount > 0
+
+
+# ══════════════════════════════════════════════════════════════
+# Token revocation (refresh token jti blocklist)
+# ══════════════════════════════════════════════════════════════
+
+def revoke_token(jti: str, user_id: int, expires_at: datetime) -> None:
+    """Add a refresh token's jti to the revocation list."""
+    with engine.begin() as conn:
+        conn.execute(
+            text("""INSERT INTO revoked_tokens (jti, user_id, expires_at)
+                VALUES (:jti, :uid, :exp) ON CONFLICT (jti) DO NOTHING"""),
+            {"jti": jti, "uid": user_id, "exp": expires_at},
+        )
+
+
+def is_token_revoked(jti: str) -> bool:
+    """Check if a refresh token jti has been revoked."""
+    with engine.connect() as conn:
+        row = conn.execute(
+            text("SELECT 1 FROM revoked_tokens WHERE jti = :jti"),
+            {"jti": jti},
+        ).fetchone()
+    return row is not None
+
+
+def cleanup_expired_tokens() -> int:
+    """Remove expired revoked tokens (cleanup job). Returns count of removed rows."""
+    with engine.begin() as conn:
+        result = conn.execute(
+            text("DELETE FROM revoked_tokens WHERE expires_at < NOW()"),
+        )
+    return result.rowcount
 
 
 # ══════════════════════════════════════════════════════════════

@@ -11,6 +11,7 @@ from src.models.patient import Patient, Gender, BloodType, Allergy
 from src.utils.database import (
     save_patient, create_user, get_user_by_username, get_user_by_id,
     update_user_password, delete_user,
+    revoke_token, is_token_revoked,
 )
 from ..auth import (
     hash_password, verify_password, create_token, get_current_user,
@@ -258,15 +259,37 @@ def delete_account(current_user: dict = Depends(get_current_user)):
 
 @router.post("/refresh", response_model=AuthResponse)
 def refresh_token(req: RefreshRequest):
-    """Exchange a valid refresh token for new access + refresh tokens."""
+    """Exchange a valid refresh token for new access + refresh tokens.
+
+    Uses jti (JWT ID) to prevent token reuse — each refresh token
+    can only be used once (rotation).
+    """
     payload = decode_token(req.refresh_token)
 
     if payload.get("type") != "refresh":
         raise HTTPException(401, "Недействительный refresh-токен")
 
+    # Check jti blocklist (if token has jti — old tokens without jti still work)
+    jti = payload.get("jti")
+    if jti and is_token_revoked(jti):
+        logger.warning("[REFRESH_REUSE] Revoked token reuse attempt, user_id=%s, jti=%s", payload.get("user_id"), jti)
+        AuditLogService.log_security(
+            "refresh_token_reuse",
+            f"Попытка повторного использования refresh-токена",
+            data={"user_id": payload.get("user_id"), "jti": jti},
+        )
+        raise HTTPException(401, "Refresh-токен уже использован")
+
     user = get_user_by_id(payload["user_id"])
     if not user:
         raise HTTPException(401, "Пользователь не найден")
+
+    # Revoke the old refresh token
+    if jti:
+        from datetime import datetime, timezone
+        exp_ts = payload.get("exp", 0)
+        expires_at = datetime.fromtimestamp(exp_ts, tz=timezone.utc)
+        revoke_token(jti, user["id"], expires_at)
 
     new_access = create_access_token(user["id"], user["patient_id"], username=user["username"])
     new_refresh = create_refresh_token(user["id"], user["patient_id"], username=user["username"])

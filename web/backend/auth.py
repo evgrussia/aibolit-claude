@@ -1,6 +1,7 @@
 """Authentication helpers: password hashing, JWT tokens, FastAPI dependency."""
 import hashlib
 import os
+import uuid
 from datetime import datetime, timedelta, timezone
 
 import jwt
@@ -55,12 +56,13 @@ def create_access_token(user_id: int, patient_id: str | None, username: str = ""
 
 
 def create_refresh_token(user_id: int, patient_id: str | None, username: str = "") -> str:
-    """Create a long-lived JWT refresh token (7 days)."""
+    """Create a long-lived JWT refresh token (7 days) with unique jti."""
     payload = {
         "user_id": user_id,
         "patient_id": patient_id,
         "username": username,
         "type": "refresh",
+        "jti": str(uuid.uuid4()),
         "exp": datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS),
     }
     return jwt.encode(payload, SECRET_KEY, algorithm=JWT_ALGORITHM)

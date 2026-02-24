@@ -14,10 +14,9 @@ from src.utils.database import (
     add_diagnosis as db_add_diagnosis, add_medication as db_add_medication,
     add_allergy as db_add_allergy,
     get_lab_trends, get_vitals_trends, get_consultation_history,
-    get_patients_by_diagnosis,
     delete_sub_record, update_sub_record, update_patient_fields,
 )
-from ..auth import get_current_user, get_optional_user
+from ..auth import get_current_user
 from ..schemas.patient import (
     PatientSummary, PatientResponse, RegisterPatientRequest,
     AddVitalsRequest, AddLabResultRequest, BulkAddLabResultsRequest,
@@ -119,11 +118,6 @@ def search(q: str = Query(..., min_length=1), _: dict = Depends(get_current_user
     return search_patients(q)
 
 
-@router.get("/by-diagnosis", response_model=list[dict])
-def patients_by_diagnosis(icd10: str = Query(..., min_length=1), _: dict = Depends(get_current_user)):
-    return get_patients_by_diagnosis(icd10)
-
-
 @router.post("", response_model=dict)
 def register_patient(req: RegisterPatientRequest, current_user: dict = Depends(get_current_user)):
     dob = _parse_date(req.date_of_birth)
@@ -151,7 +145,7 @@ def register_patient(req: RegisterPatientRequest, current_user: dict = Depends(g
 
 
 @router.get("/{patient_id}", response_model=PatientResponse)
-def get_patient(patient_id: str, current_user: dict | None = Depends(get_optional_user)):
+def get_patient(patient_id: str, current_user: dict = Depends(get_current_user)):
     _check_patient_access(patient_id, current_user)
     p = load_patient(patient_id)
     if not p:
@@ -160,7 +154,7 @@ def get_patient(patient_id: str, current_user: dict | None = Depends(get_optiona
 
 
 @router.delete("/{patient_id}")
-def remove_patient(patient_id: str, current_user: dict | None = Depends(get_optional_user)):
+def remove_patient(patient_id: str, current_user: dict = Depends(get_current_user)):
     _check_patient_access(patient_id, current_user)
     if not delete_patient(patient_id):
         raise HTTPException(404, f"Пациент {patient_id} не найден")
@@ -171,7 +165,7 @@ def remove_patient(patient_id: str, current_user: dict | None = Depends(get_opti
 
 
 @router.post("/{patient_id}/vitals")
-def add_vitals(patient_id: str, req: AddVitalsRequest, current_user: dict | None = Depends(get_optional_user)):
+def add_vitals(patient_id: str, req: AddVitalsRequest, current_user: dict = Depends(get_current_user)):
     _check_patient_access(patient_id, current_user)
     vitals = VitalSigns(
         timestamp=datetime.now(),
@@ -197,7 +191,7 @@ def add_vitals(patient_id: str, req: AddVitalsRequest, current_user: dict | None
 
 
 @router.post("/{patient_id}/labs")
-def add_lab(patient_id: str, req: AddLabResultRequest, current_user: dict | None = Depends(get_optional_user)):
+def add_lab(patient_id: str, req: AddLabResultRequest, current_user: dict = Depends(get_current_user)):
     _check_patient_access(patient_id, current_user)
     lr = LabResult(
         test_name=req.test_name,
@@ -232,7 +226,7 @@ _MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10 MB
 async def parse_lab_file(
     patient_id: str,
     file: UploadFile = File(...),
-    current_user: dict | None = Depends(get_optional_user),
+    current_user: dict = Depends(get_current_user),
 ):
     _check_patient_access(patient_id, current_user)
     if not load_patient(patient_id):
@@ -271,7 +265,7 @@ async def parse_lab_file(
 def add_labs_bulk(
     patient_id: str,
     req: BulkAddLabResultsRequest,
-    current_user: dict | None = Depends(get_optional_user),
+    current_user: dict = Depends(get_current_user),
 ):
     _check_patient_access(patient_id, current_user)
     if not load_patient(patient_id):
@@ -301,7 +295,7 @@ def add_labs_bulk(
 
 
 @router.post("/{patient_id}/diagnoses")
-def add_diag(patient_id: str, req: AddDiagnosisRequest, current_user: dict | None = Depends(get_optional_user)):
+def add_diag(patient_id: str, req: AddDiagnosisRequest, current_user: dict = Depends(get_current_user)):
     _check_patient_access(patient_id, current_user)
     diag = Diagnosis(
         icd10_code=req.icd10_code,
@@ -325,7 +319,7 @@ def add_diag(patient_id: str, req: AddDiagnosisRequest, current_user: dict | Non
 
 
 @router.post("/{patient_id}/medications")
-def add_med(patient_id: str, req: AddMedicationRequest, current_user: dict | None = Depends(get_optional_user)):
+def add_med(patient_id: str, req: AddMedicationRequest, current_user: dict = Depends(get_current_user)):
     _check_patient_access(patient_id, current_user)
     med = Medication(
         name=req.name, dosage=req.dosage, frequency=req.frequency,
@@ -346,25 +340,25 @@ def add_med(patient_id: str, req: AddMedicationRequest, current_user: dict | Non
 
 
 @router.get("/{patient_id}/lab-trends")
-def lab_trends(patient_id: str, test: str = Query(..., min_length=1), limit: int = 20, current_user: dict | None = Depends(get_optional_user)):
+def lab_trends(patient_id: str, test: str = Query(..., min_length=1), limit: int = 20, current_user: dict = Depends(get_current_user)):
     _check_patient_access(patient_id, current_user)
     return get_lab_trends(patient_id, test, limit)
 
 
 @router.get("/{patient_id}/vitals-history")
-def vitals_history(patient_id: str, limit: int = 20, current_user: dict | None = Depends(get_optional_user)):
+def vitals_history(patient_id: str, limit: int = 20, current_user: dict = Depends(get_current_user)):
     _check_patient_access(patient_id, current_user)
     return get_vitals_trends(patient_id, limit)
 
 
 @router.get("/{patient_id}/consultations")
-def patient_consultations(patient_id: str, limit: int = 50, current_user: dict | None = Depends(get_optional_user)):
+def patient_consultations(patient_id: str, limit: int = 50, current_user: dict = Depends(get_current_user)):
     _check_patient_access(patient_id, current_user)
     return get_consultation_history(patient_id=patient_id, limit=limit)
 
 
 @router.post("/{patient_id}/allergies")
-def add_allergy(patient_id: str, req: AddAllergyRequest, current_user: dict | None = Depends(get_optional_user)):
+def add_allergy(patient_id: str, req: AddAllergyRequest, current_user: dict = Depends(get_current_user)):
     _check_patient_access(patient_id, current_user)
     allergy = Allergy(substance=req.substance, reaction=req.reaction, severity=req.severity)
     try:
@@ -382,7 +376,7 @@ def add_allergy(patient_id: str, req: AddAllergyRequest, current_user: dict | No
 
 
 @router.delete("/{patient_id}/{table}/{record_id}")
-def delete_record(patient_id: str, table: str, record_id: int, current_user: dict | None = Depends(get_optional_user)):
+def delete_record(patient_id: str, table: str, record_id: int, current_user: dict = Depends(get_current_user)):
     if table not in _ALLOWED_TABLES:
         raise HTTPException(400, f"Недопустимая таблица: {table}")
     _check_patient_access(patient_id, current_user)
@@ -401,7 +395,7 @@ def delete_record(patient_id: str, table: str, record_id: int, current_user: dic
 def update_record(
     patient_id: str, table: str, record_id: int,
     fields: dict = Body(...),
-    current_user: dict | None = Depends(get_optional_user),
+    current_user: dict = Depends(get_current_user),
 ):
     if table not in _ALLOWED_TABLES:
         raise HTTPException(400, f"Недопустимая таблица: {table}")
@@ -418,7 +412,7 @@ def update_record(
 
 
 @router.patch("/{patient_id}")
-def update_patient(patient_id: str, req: UpdatePatientRequest, current_user: dict | None = Depends(get_optional_user)):
+def update_patient(patient_id: str, req: UpdatePatientRequest, current_user: dict = Depends(get_current_user)):
     _check_patient_access(patient_id, current_user)
     p = load_patient(patient_id)
     if not p:

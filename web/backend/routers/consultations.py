@@ -1,14 +1,15 @@
 """Consultation and triage endpoints."""
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from src.agents.specializations import get_specialization
 from src.safety.disclaimers import DisclaimerType, get_disclaimer
+from src.safety.output_guard import SAFETY_ADDENDUM, check_ai_output
 from src.safety.red_flags import RedFlagDetector
-from src.utils.database import get_consultation_history, load_patient, save_consultation
-from ..auth import get_optional_user
+from src.utils.database import load_patient, save_consultation
+from ..auth import get_current_user
 from ..services import claude_service
 from ..services.audit_service import AuditLogService
 from ..services.consultation_service import build_consultation
@@ -29,14 +30,6 @@ class ConsultStartRequest(BaseModel):
     specialty: str
     complaints: str
     patient_id: str | None = None
-
-
-@router.get("")
-def list_consultations(
-    specialty: str | None = None,
-    limit: int = Query(50, le=200),
-):
-    return get_consultation_history(specialty=specialty, limit=limit)
 
 
 @router.post("/triage")
@@ -91,7 +84,7 @@ def triage(req: TriageRequest):
 @router.post("/start")
 async def start_consultation(
     req: ConsultStartRequest,
-    current_user: dict | None = Depends(get_optional_user),
+    current_user: dict = Depends(get_current_user),
 ):
     # Auto-fill patient_id from token if not provided
     patient_id = req.patient_id
@@ -133,6 +126,18 @@ async def start_consultation(
     if not ai_text:
         logger.warning("Empty AI response for specialty=%s, complaints=%s", req.specialty, req.complaints[:100])
         raise HTTPException(503, "AI-сервис временно недоступен (пустой ответ от Claude)")
+
+    # --- Medical Safety: AI output guard ---
+    violations = check_ai_output(ai_text)
+    if violations:
+        ai_text += SAFETY_ADDENDUM
+        AuditLogService.log_medical(
+            "ai_output_safety_violation",
+            data={"specialty": req.specialty,
+                  "violations": [{"category": v.category, "severity": v.severity} for v in violations]},
+            actor="system",
+            level="WARNING",
+        )
 
     base["consultation"]["summary"] = ai_text
     base["ai_generated"] = True

@@ -11,6 +11,7 @@ from pydantic import BaseModel
 
 from src.agents.specializations import get_specialization
 from src.safety.disclaimers import DisclaimerType, get_disclaimer
+from src.safety.output_guard import SAFETY_ADDENDUM, check_ai_output
 from src.safety.red_flags import RedFlagDetector
 from src.utils.database import (
     add_chat_message,
@@ -215,6 +216,22 @@ async def create_chat(
                 actor="system",
             )
 
+            # AI output safety check
+            violations = check_ai_output(full_text)
+            if violations:
+                AuditLogService.log_medical(
+                    "ai_output_safety_violation",
+                    data={"consultation_id": consultation_id,
+                          "violations": [{"category": v.category, "severity": v.severity} for v in violations]},
+                    actor="system",
+                    level="WARNING",
+                )
+                safety_warning = {
+                    "warning": SAFETY_ADDENDUM.strip(),
+                    "violations": [v.category for v in violations],
+                }
+                yield f"event: safety_warning\ndata: {json.dumps(safety_warning, ensure_ascii=False)}\n\n"
+
             yield f"event: done\ndata: {json.dumps({'message_id': msg_id, 'full_text': full_text}, ensure_ascii=False)}\n\n"
 
             # Detect referrals to other specialists
@@ -409,6 +426,22 @@ async def send_chat_message(
                       "message_id": msg_id, "response_length": len(full_text)},
                 actor="system",
             )
+            # AI output safety check
+            violations = check_ai_output(full_text)
+            if violations:
+                AuditLogService.log_medical(
+                    "ai_output_safety_violation",
+                    data={"consultation_id": consultation_id,
+                          "violations": [{"category": v.category, "severity": v.severity} for v in violations]},
+                    actor="system",
+                    level="WARNING",
+                )
+                safety_warning = {
+                    "warning": SAFETY_ADDENDUM.strip(),
+                    "violations": [v.category for v in violations],
+                }
+                yield f"event: safety_warning\ndata: {json.dumps(safety_warning, ensure_ascii=False)}\n\n"
+
             yield f"event: done\ndata: {json.dumps({'message_id': msg_id, 'full_text': full_text}, ensure_ascii=False)}\n\n"
 
             # Detect referrals to other specialists

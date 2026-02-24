@@ -1,15 +1,9 @@
-"""Reference data endpoints (lab ranges, specializations)."""
+"""Reference data endpoints (specializations)."""
 from fastapi import APIRouter
 
-from src.models.medical_refs import LAB_REFERENCE_RANGES
 from src.agents.specializations import SPECIALIZATIONS
 
 router = APIRouter(prefix="/reference", tags=["reference"])
-
-
-@router.get("/lab-ranges")
-def lab_ranges():
-    return LAB_REFERENCE_RANGES
 
 
 @router.get("/specializations")
