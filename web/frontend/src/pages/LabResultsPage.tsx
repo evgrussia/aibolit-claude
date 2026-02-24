@@ -81,23 +81,23 @@ export default function LabResultsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-          <FlaskConical size={24} className="text-medical-teal" /> Анализы
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-800 flex items-center gap-2">
+          <FlaskConical size={22} className="text-medical-teal shrink-0" /> Анализы
+          <span className="text-sm font-normal text-gray-400 ml-1 hidden sm:inline">{patient.lab_results.length} результатов</span>
         </h1>
-        <div className="flex items-center gap-3">
-          <span className="text-sm text-gray-400">{patient.lab_results.length} результатов</span>
+        <div className="flex items-center gap-2 sm:gap-3">
           <button
             onClick={() => setShowUpload(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 border border-medical-teal text-medical-teal rounded-lg text-sm font-medium hover:bg-medical-teal/5 transition-colors"
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 border border-medical-teal text-medical-teal rounded-lg text-xs sm:text-sm font-medium hover:bg-medical-teal/5 transition-colors"
           >
-            <Upload size={14} /> Загрузить файл
+            <Upload size={14} /> <span className="hidden sm:inline">Загрузить файл</span><span className="sm:hidden">Файл</span>
           </button>
           <button
             onClick={() => setShowForm(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-medical-teal text-white rounded-lg text-sm font-medium hover:bg-medical-teal/90 transition-colors"
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-medical-teal text-white rounded-lg text-xs sm:text-sm font-medium hover:bg-medical-teal/90 transition-colors"
           >
-            <Plus size={14} /> Добавить результат
+            <Plus size={14} /> <span className="hidden sm:inline">Добавить</span><span className="sm:hidden">+</span>
           </button>
         </div>
       </div>

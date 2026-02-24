@@ -48,15 +48,15 @@ export default function VitalsHistoryPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-          <HeartPulse size={24} className="text-medical-teal" /> Витальные показатели
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-800 flex items-center gap-2 min-w-0">
+          <HeartPulse size={22} className="text-medical-teal shrink-0" /> <span className="truncate">Витальные</span>
         </h1>
         <button
           onClick={() => setShowForm(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-medical-teal text-white rounded-lg text-sm font-medium hover:bg-medical-teal/90 transition-colors"
+          className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-medical-teal text-white rounded-lg text-xs sm:text-sm font-medium hover:bg-medical-teal/90 transition-colors shrink-0"
         >
-          <Plus size={14} /> Записать показатели
+          <Plus size={14} /> <span className="hidden sm:inline">Записать</span><span className="sm:hidden">+</span>
         </button>
       </div>
 

@@ -142,17 +142,17 @@ export default function HealthTimelinePage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-        <Clock size={24} className="text-medical-teal" /> Хронология
+      <h1 className="text-xl sm:text-2xl font-bold text-gray-800 flex items-center gap-2">
+        <Clock size={22} className="text-medical-teal shrink-0" /> Хронология
       </h1>
 
       {/* Filters */}
       <Card>
-        <div className="flex flex-wrap items-center gap-4">
+        <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3 sm:gap-4">
           <div className="flex items-center gap-2">
-            <Filter size={14} className="text-gray-400" />
-            <span className="text-xs font-medium text-gray-500 uppercase">Период:</span>
-            <div className="flex gap-1">
+            <Filter size={14} className="text-gray-400 shrink-0" />
+            <span className="text-xs font-medium text-gray-500 uppercase shrink-0">Период:</span>
+            <div className="flex gap-1 overflow-x-auto">
               {RANGES.map(r => (
                 <button
                   key={r.days}
@@ -170,20 +170,20 @@ export default function HealthTimelinePage() {
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-xs font-medium text-gray-500 uppercase">Тип:</span>
-            <div className="flex gap-1">
+            <span className="text-xs font-medium text-gray-500 uppercase shrink-0">Тип:</span>
+            <div className="flex gap-1 flex-wrap">
               {(Object.keys(TYPE_CONFIG) as EventType[]).map(t => (
                 <button
                   key={t}
                   onClick={() => toggleType(t)}
-                  className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
+                  className={`flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-lg text-[10px] sm:text-xs font-medium transition-colors whitespace-nowrap ${
                     typeFilter.has(t)
                       ? TYPE_CONFIG[t].color
                       : 'bg-gray-50 text-gray-300'
                   }`}
                 >
                   {TYPE_CONFIG[t].icon}
-                  {TYPE_CONFIG[t].label}
+                  <span className="hidden sm:inline">{TYPE_CONFIG[t].label}</span>
                 </button>
               ))}
             </div>

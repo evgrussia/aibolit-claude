@@ -34,17 +34,18 @@ export default function ChatHistoryPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-          <MessageCircle size={24} className="text-medical-teal" />
-          Мои консультации
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-800 flex items-center gap-2 min-w-0">
+          <MessageCircle size={22} className="text-medical-teal shrink-0" />
+          <span className="truncate">Мои консультации</span>
         </h1>
         <Link
           to="/consult"
-          className="flex items-center gap-2 px-4 py-2 bg-medical-teal text-white rounded-lg text-sm font-medium hover:bg-medical-teal/90 transition-colors"
+          className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 bg-medical-teal text-white rounded-lg text-xs sm:text-sm font-medium hover:bg-medical-teal/90 transition-colors shrink-0"
         >
-          <Plus size={16} />
-          Новая
+          <Plus size={14} />
+          <span className="hidden sm:inline">Новая</span>
+          <span className="sm:hidden">+</span>
         </Link>
       </div>
 

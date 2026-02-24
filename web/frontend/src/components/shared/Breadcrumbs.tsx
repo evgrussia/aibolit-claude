@@ -38,9 +38,9 @@ export default function Breadcrumbs() {
   if (crumbs.length <= 1) return null;
 
   return (
-    <nav aria-label="Навигационная цепочка" className="flex items-center gap-1 text-xs text-gray-400 mb-4">
+    <nav aria-label="Навигационная цепочка" className="flex items-center gap-1 text-xs text-gray-400 mb-3 sm:mb-4 overflow-x-auto whitespace-nowrap">
       {crumbs.map((c, i) => (
-        <span key={c.to} className="flex items-center gap-1">
+        <span key={c.to} className="flex items-center gap-1 shrink-0">
           {i > 0 && <ChevronRight size={12} />}
           {i < crumbs.length - 1 ? (
             <Link to={c.to} className="hover:text-medical-teal transition-colors">{c.label}</Link>

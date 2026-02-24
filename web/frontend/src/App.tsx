@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ToastProvider } from './contexts/ToastContext';
 import ErrorBoundary from './components/shared/ErrorBoundary';
 import Layout from './components/layout/Layout';
+import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import LabResultsPage from './pages/LabResultsPage';
@@ -17,6 +18,7 @@ import HealthTimelinePage from './pages/HealthTimelinePage';
 import DiagnosticsPage from './pages/DiagnosticsPage';
 import DrugToolsPage from './pages/DrugToolsPage';
 import DocumentsPage from './pages/DocumentsPage';
+import HelpPage from './pages/HelpPage';
 import SettingsPage from './pages/SettingsPage';
 import LoadingSpinner from './components/shared/LoadingSpinner';
 
@@ -39,10 +41,10 @@ function ProtectedRoute() {
 }
 
 function RedirectToMyDashboard() {
-  const { patientId, isLoading } = useAuth();
+  const { patientId, isAuthenticated, isLoading } = useAuth();
   if (isLoading) return <div className="min-h-screen flex items-center justify-center"><LoadingSpinner /></div>;
-  if (patientId) return <Navigate to={`/patients/${patientId}`} replace />;
-  return <Navigate to="/login" replace />;
+  if (isAuthenticated && patientId) return <Navigate to={`/patients/${patientId}`} replace />;
+  return <LandingPage />;
 }
 
 export default function App() {
@@ -53,10 +55,10 @@ export default function App() {
           <ToastProvider>
             <BrowserRouter>
               <Routes>
+                <Route path="/" element={<RedirectToMyDashboard />} />
                 <Route path="/login" element={<LoginPage />} />
                 <Route element={<ProtectedRoute />}>
                   <Route element={<Layout />}>
-                    <Route path="/" element={<RedirectToMyDashboard />} />
                     <Route path="/patients/:patientId" element={<DashboardPage />} />
                     <Route path="/patients/:patientId/labs" element={<LabResultsPage />} />
                     <Route path="/patients/:patientId/vitals" element={<VitalsHistoryPage />} />
@@ -69,6 +71,7 @@ export default function App() {
                     <Route path="/diagnostics" element={<DiagnosticsPage />} />
                     <Route path="/drugs" element={<DrugToolsPage />} />
                     <Route path="/documents" element={<DocumentsPage />} />
+                    <Route path="/help" element={<HelpPage />} />
                     <Route path="/settings" element={<SettingsPage />} />
                   </Route>
                 </Route>

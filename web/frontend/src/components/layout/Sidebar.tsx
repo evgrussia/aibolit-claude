@@ -3,6 +3,7 @@ import {
   LayoutDashboard, FlaskConical, HeartPulse,
   Activity, Pill, FileText, Heart,
   MessageSquare, MessageCircle, Clock, LogOut, X, User, Settings,
+  HelpCircle,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuth } from '../../contexts/AuthContext';
@@ -98,15 +99,18 @@ export default function Sidebar({ onClose }: SidebarProps) {
         </NavLink>
       </nav>
 
-      <div className="px-4 py-4 border-t border-white/10 space-y-2">
-        <div className="text-blue-400 text-xs text-center space-y-0.5">
+      <div className="px-3 py-3 border-t border-white/10 space-y-1.5">
+        <div className="text-blue-400 text-[10px] text-center">
           <p>35 специализаций · 31 инструмент</p>
         </div>
-        <div className="p-2 bg-white/5 rounded-lg">
-          <p className="text-yellow-300 text-xs text-center leading-tight">
+        <div className="p-1.5 bg-white/5 rounded-lg">
+          <p className="text-yellow-300 text-[10px] text-center leading-tight">
             Только для демо и обучения
           </p>
         </div>
+        <NavLink to="/help" className={navClass} onClick={handleNavClick}>
+          <HelpCircle size={16} /> Помощь
+        </NavLink>
         <NavLink to="/settings" className={navClass} onClick={handleNavClick}>
           <Settings size={16} /> Настройки
         </NavLink>

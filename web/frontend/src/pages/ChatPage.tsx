@@ -191,22 +191,23 @@ export default function ChatPage() {
   const isActive = status === 'active';
 
   return (
-    <div className="flex flex-col h-[calc(100vh-8rem)] max-w-3xl mx-auto">
+    <div className="flex flex-col h-[calc(100vh-7rem)] md:h-[calc(100vh-8rem)] max-w-3xl mx-auto">
       {/* Header */}
-      <div className="flex items-center gap-3 pb-4 border-b border-gray-100">
-        <button onClick={() => navigate('/chat')} className="p-2 rounded-lg hover:bg-gray-100 text-gray-500">
-          <ArrowLeft size={20} />
+      <div className="flex items-center gap-2 sm:gap-3 pb-3 sm:pb-4 border-b border-gray-100">
+        <button onClick={() => navigate('/chat')} className="p-1.5 sm:p-2 rounded-lg hover:bg-gray-100 text-gray-500 shrink-0">
+          <ArrowLeft size={18} />
         </button>
-        <div className="w-10 h-10 bg-medical-teal/10 rounded-full flex items-center justify-center shrink-0">
-          <Stethoscope size={22} className="text-medical-teal" />
+        <div className="w-8 h-8 sm:w-10 sm:h-10 bg-medical-teal/10 rounded-full flex items-center justify-center shrink-0">
+          <Stethoscope size={18} className="text-medical-teal sm:hidden" />
+          <Stethoscope size={22} className="text-medical-teal hidden sm:block" />
         </div>
         <div className="flex-1 min-w-0">
-          <h2 className="text-sm font-bold text-gray-800 truncate">{doctor?.name || 'AI-Врач'}</h2>
-          <p className="text-xs text-gray-500 truncate">{doctor?.qualification}</p>
+          <h2 className="text-xs sm:text-sm font-bold text-gray-800 truncate">{doctor?.name || 'AI-Врач'}</h2>
+          <p className="text-[10px] sm:text-xs text-gray-500 truncate">{doctor?.qualification}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           <span className={clsx(
-            'px-2 py-0.5 text-xs rounded-full font-medium',
+            'px-1.5 sm:px-2 py-0.5 text-[10px] sm:text-xs rounded-full font-medium',
             isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500',
           )}>
             {isActive ? 'Активна' : 'Закрыта'}
@@ -217,11 +218,11 @@ export default function ChatPage() {
               className="text-xs text-gray-400 hover:text-red-500 transition-colors"
               title="Закрыть консультацию"
             >
-              <XCircle size={18} />
+              <XCircle size={16} />
             </button>
           )}
           {doctor && (
-            <div className="flex items-center gap-1 px-2 py-0.5 bg-violet-50 border border-violet-200 rounded-full">
+            <div className="hidden sm:flex items-center gap-1 px-2 py-0.5 bg-violet-50 border border-violet-200 rounded-full">
               <Sparkles size={12} className="text-violet-500" />
               <span className="text-xs font-medium text-violet-600">AI</span>
             </div>
@@ -254,7 +255,7 @@ export default function ChatPage() {
         {/* Streaming indicator */}
         {streaming && streamText && (
           <div className="flex justify-start">
-            <div className="max-w-[80%] px-4 py-3 rounded-2xl rounded-bl-sm bg-white border border-gray-100 shadow-sm">
+            <div className="max-w-[90%] sm:max-w-[80%] px-3 py-2.5 sm:px-4 sm:py-3 rounded-2xl rounded-bl-sm bg-white border border-gray-100 shadow-sm">
               <div
                 className="text-sm text-gray-700 leading-relaxed prose prose-sm max-w-none"
                 dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(markdownToHtml(streamText)) }}
@@ -361,7 +362,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   return (
     <div className={clsx('flex', isUser ? 'justify-end' : 'justify-start')}>
       <div className={clsx(
-        'max-w-[80%] px-4 py-3 rounded-2xl',
+        'max-w-[90%] sm:max-w-[80%] px-3 py-2.5 sm:px-4 sm:py-3 rounded-2xl',
         isUser
           ? 'bg-medical-teal text-white rounded-br-sm'
           : 'bg-white border border-gray-100 shadow-sm rounded-bl-sm',

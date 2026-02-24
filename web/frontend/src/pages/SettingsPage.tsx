@@ -65,8 +65,8 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-6 max-w-xl">
-      <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-        <Settings size={24} className="text-medical-teal" /> Настройки
+      <h1 className="text-xl sm:text-2xl font-bold text-gray-800 flex items-center gap-2">
+        <Settings size={22} className="text-medical-teal shrink-0" /> Настройки
       </h1>
 
       <Card title="Аккаунт" icon={<Lock size={18} />}>

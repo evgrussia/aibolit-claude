@@ -121,26 +121,26 @@ export default function ConsultDoctorPage() {
             <ArrowLeft size={20} />
           </button>
         )}
-        <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-          <MessageSquare size={24} className="text-medical-teal" />
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-800 flex items-center gap-2">
+          <MessageSquare size={22} className="text-medical-teal shrink-0" />
           AI Консультация
         </h1>
       </div>
 
       {/* Step indicators */}
-      <div className="flex items-center gap-2 text-sm">
+      <div className="flex items-center gap-1.5 sm:gap-2 text-sm overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
         {visibleSteps.map((s, i) => {
           const isActive = s === step;
           const isPast = stepIdx > STEP_ORDER.indexOf(s);
           return (
-            <div key={s} className="flex items-center gap-2">
-              {i > 0 && <div className={`w-8 h-px ${isPast || isActive ? 'bg-medical-teal' : 'bg-gray-200'}`} />}
-              <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${
+            <div key={s} className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+              {i > 0 && <div className={`w-4 sm:w-8 h-px ${isPast || isActive ? 'bg-medical-teal' : 'bg-gray-200'}`} />}
+              <div className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 rounded-full text-[10px] sm:text-xs font-medium whitespace-nowrap ${
                 isActive ? 'bg-medical-teal text-white' :
                 isPast ? 'bg-medical-teal/10 text-medical-teal' : 'bg-gray-100 text-gray-400'
               }`}>
                 <span>{i + 1}</span>
-                <span>{STEP_LABELS[s]}</span>
+                <span className="hidden xs:inline sm:inline">{STEP_LABELS[s]}</span>
               </div>
             </div>
           );

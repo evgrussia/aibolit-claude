@@ -19,22 +19,24 @@ export default function DrugToolsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-          <Pill size={24} className="text-medical-teal" /> Лекарства
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-800 flex items-center gap-2">
+          <Pill size={22} className="text-medical-teal shrink-0" /> Лекарства
         </h1>
         <p className="text-sm text-gray-500 mt-1">{descriptions[tab]}</p>
       </div>
 
-      <div className="flex gap-1 p-1 bg-gray-100 rounded-xl w-fit" role="tablist" aria-label="Инструменты для лекарств">
-        {TABS.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)}
-            role="tab" aria-selected={tab === t.id}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-              tab === t.id ? 'bg-white shadow text-medical-navy' : 'text-gray-500 hover:text-gray-700'
-            }`}>
-            {t.icon}{t.label}
-          </button>
-        ))}
+      <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+        <div className="flex gap-1 p-1 bg-gray-100 rounded-xl w-fit" role="tablist" aria-label="Инструменты для лекарств">
+          {TABS.map(t => (
+            <button key={t.id} onClick={() => setTab(t.id)}
+              role="tab" aria-selected={tab === t.id}
+              className={`flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all whitespace-nowrap ${
+                tab === t.id ? 'bg-white shadow text-medical-navy' : 'text-gray-500 hover:text-gray-700'
+              }`}>
+              {t.icon}{t.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {tab === 'search'       && <DrugSearchSection />}
