@@ -288,7 +288,7 @@ async def send_chat_message(
     )
     # Load chat history for session recovery
     history_rows = get_chat_messages(consultation_id)
-    chat_history = [{"role": m["role"], "text": m["text"]} for m in history_rows]
+    chat_history = [{"role": m["role"], "text": m.get("content", "")} for m in history_rows]
 
     # Red flags on user text
     flags = _red_flag_detector.detect(safe_text) if safe_text else []
