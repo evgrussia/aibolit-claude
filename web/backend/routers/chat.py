@@ -25,6 +25,7 @@ from src.utils.database import (
 )
 from ..auth import get_current_user
 from ..services import chat_service
+from ..services.audit_service import AuditLogService
 
 logger = logging.getLogger("aibolit.chat")
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -116,6 +117,13 @@ async def create_chat(
     # Save user message
     add_chat_message(consultation_id, "user", safe_complaints)
 
+    AuditLogService.log_medical(
+        "chat_consultation_created",
+        data={"consultation_id": consultation_id, "patient_id": patient_id,
+              "specialty": req.specialty, "session_id": session_id},
+        actor=current_user,
+    )
+
     # Red flags
     flags = _red_flag_detector.detect(safe_complaints)
     red_flags_data = None
@@ -138,6 +146,15 @@ async def create_chat(
                 "message": "Обнаружены признаки, требующие экстренной медицинской помощи!",
                 "flags": [{"category": f.category, "description": f.description, "action": f.action} for f in immediate],
             }
+
+        AuditLogService.log_medical(
+            "red_flag_detected",
+            data={"consultation_id": consultation_id, "patient_id": patient_id,
+                  "flags_count": len(flags), "emergency": bool(immediate),
+                  "categories": [f.category for f in flags]},
+            actor="system",
+            level="WARNING",
+        )
 
     # Build disclaimers
     disclaimers = [DisclaimerType.GENERAL, DisclaimerType.DIAGNOSIS]
@@ -190,6 +207,14 @@ async def create_chat(
                 "[CHAT_CREATE_DONE] consultation=%s, response_len=%d, msg_id=%s",
                 consultation_id, len(full_text), msg_id,
             )
+
+            AuditLogService.log_medical(
+                "ai_chat_response_generated",
+                data={"consultation_id": consultation_id, "message_id": msg_id,
+                      "response_len": len(full_text), "specialty": req.specialty},
+                actor="system",
+            )
+
             yield f"event: done\ndata: {json.dumps({'message_id': msg_id, 'full_text': full_text}, ensure_ascii=False)}\n\n"
 
             # Detect referrals to other specialists
@@ -330,6 +355,15 @@ async def send_chat_message(
                 "flags": [{"category": f.category, "description": f.description, "action": f.action} for f in immediate],
             }
 
+        AuditLogService.log_medical(
+            "red_flag_detected",
+            data={"consultation_id": consultation_id, "patient_id": patient_id,
+                  "flags_count": len(flags), "emergency": bool(immediate),
+                  "categories": [f.category for f in flags]},
+            actor="system",
+            level="WARNING",
+        )
+
     async def event_stream() -> AsyncIterator[str]:
         # Meta event with red flags if any
         if red_flags_data or emergency_data:
@@ -468,6 +502,11 @@ def close_chat(
     if consultation["patient_id"] != current_user.get("patient_id"):
         raise HTTPException(403, "Нет доступа к этой консультации")
     if close_consultation(consultation_id):
+        AuditLogService.log_medical(
+            "chat_consultation_closed",
+            data={"consultation_id": consultation_id, "patient_id": current_user.get("patient_id")},
+            actor=current_user,
+        )
         return {"status": "closed"}
     raise HTTPException(400, "Консультация уже закрыта или не найдена")
 

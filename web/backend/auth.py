@@ -6,7 +6,11 @@ from datetime import datetime, timedelta, timezone
 import jwt
 from fastapi import HTTPException, Request
 
-from .config import SECRET_KEY, JWT_ALGORITHM, JWT_EXPIRE_DAYS
+from .config import SECRET_KEY, JWT_ALGORITHM
+
+# Token expiration settings
+ACCESS_TOKEN_EXPIRE_MINUTES = 15
+REFRESH_TOKEN_EXPIRE_DAYS = 7
 
 try:
     import bcrypt
@@ -38,15 +42,33 @@ def verify_password(password: str, stored_hash: str) -> bool:
     return hashlib.sha256((salt + password).encode()).hexdigest() == h
 
 
-def create_token(user_id: int, patient_id: str | None, username: str = "") -> str:
-    """Create a JWT token with 7-day expiration."""
+def create_access_token(user_id: int, patient_id: str | None, username: str = "") -> str:
+    """Create a short-lived JWT access token (15 min)."""
     payload = {
         "user_id": user_id,
         "patient_id": patient_id,
         "username": username,
-        "exp": datetime.now(timezone.utc) + timedelta(days=JWT_EXPIRE_DAYS),
+        "type": "access",
+        "exp": datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
     }
     return jwt.encode(payload, SECRET_KEY, algorithm=JWT_ALGORITHM)
+
+
+def create_refresh_token(user_id: int, patient_id: str | None, username: str = "") -> str:
+    """Create a long-lived JWT refresh token (7 days)."""
+    payload = {
+        "user_id": user_id,
+        "patient_id": patient_id,
+        "username": username,
+        "type": "refresh",
+        "exp": datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS),
+    }
+    return jwt.encode(payload, SECRET_KEY, algorithm=JWT_ALGORITHM)
+
+
+def create_token(user_id: int, patient_id: str | None, username: str = "") -> str:
+    """Create access token (backward-compatible alias)."""
+    return create_access_token(user_id, patient_id, username)
 
 
 def decode_token(token: str) -> dict:

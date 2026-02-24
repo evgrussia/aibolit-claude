@@ -1,10 +1,12 @@
 """Audit log viewing endpoints."""
 import logging
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
+from sqlalchemy import text
 
-from src.utils.database import get_connection
+from src.utils.database import engine
 from ..auth import get_current_user
 
 logger = logging.getLogger("aibolit.audit.api")
@@ -27,86 +29,70 @@ def get_audit_logs(
     offset: int = Query(0, ge=0, description="Смещение"),
     current_user: dict = Depends(get_current_user),
 ):
-    """Получить список аудит-логов с фильтрацией и пагинацией.
-
-    Доступ только для авторизованных пользователей.
-    """
-    conn = get_connection()
-
-    # Строим WHERE clause динамически
+    """Получить список аудит-логов с фильтрацией и пагинацией."""
     conditions = []
-    params = []
+    params: dict = {}
 
     if category:
-        conditions.append("category = ?")
-        params.append(category)
+        conditions.append("category = :category")
+        params["category"] = category
     if action:
-        conditions.append("action = ?")
-        params.append(action)
+        conditions.append("action = :action")
+        params["action"] = action
     if level:
-        conditions.append("level = ?")
-        params.append(level.upper())
+        conditions.append("level = :level")
+        params["level"] = level.upper()
     if entity_type:
-        conditions.append("entity_type = ?")
-        params.append(entity_type)
+        conditions.append("entity_type = :entity_type")
+        params["entity_type"] = entity_type
     if entity_id:
-        conditions.append("entity_id = ?")
-        params.append(entity_id)
+        conditions.append("entity_id = :entity_id")
+        params["entity_id"] = entity_id
     if actor_id:
-        conditions.append("actor_id = ?")
-        params.append(actor_id)
+        conditions.append("actor_id = :actor_id")
+        params["actor_id"] = actor_id
     if date_from:
-        conditions.append("timestamp >= ?")
-        params.append(date_from)
+        conditions.append("timestamp >= :date_from")
+        params["date_from"] = date_from
     if date_to:
-        # Добавляем время конца дня, чтобы включить весь день
-        conditions.append("timestamp <= ?")
-        params.append(date_to + "T23:59:59" if "T" not in date_to else date_to)
+        conditions.append("timestamp <= :date_to")
+        params["date_to"] = date_to + "T23:59:59" if "T" not in date_to else date_to
     if search:
-        conditions.append("(message LIKE ? OR action LIKE ? OR entity_id LIKE ? OR request_id LIKE ?)")
-        search_pattern = f"%{search}%"
-        params.extend([search_pattern, search_pattern, search_pattern, search_pattern])
+        conditions.append("(message LIKE :search OR action LIKE :search OR entity_id LIKE :search OR request_id LIKE :search)")
+        params["search"] = f"%{search}%"
 
     where_clause = " AND ".join(conditions) if conditions else "1=1"
 
-    # Получаем общее количество
-    count_sql = f"SELECT COUNT(*) FROM audit_log WHERE {where_clause}"
-    total = conn.execute(count_sql, params).fetchone()[0]
+    with engine.connect() as conn:
+        # Total count
+        total = conn.execute(
+            text(f"SELECT COUNT(*) FROM audit_log WHERE {where_clause}"),
+            params,
+        ).scalar()
 
-    # Получаем записи
-    query_sql = f"""
-        SELECT id, timestamp, level, category, action, message,
-               entity_type, entity_id, actor_type, actor_id, actor_name,
-               data, request_id, ip_address, user_agent
-        FROM audit_log
-        WHERE {where_clause}
-        ORDER BY timestamp DESC, id DESC
-        LIMIT ? OFFSET ?
-    """
-    params.extend([limit, offset])
-
-    rows = conn.execute(query_sql, params).fetchall()
+        # Records
+        params["lim"] = limit
+        params["off"] = offset
+        rows = conn.execute(
+            text(f"""
+                SELECT id, timestamp, level, category, action, message,
+                       entity_type, entity_id, actor_type, actor_id, actor_name,
+                       data, request_id, ip_address, user_agent
+                FROM audit_log
+                WHERE {where_clause}
+                ORDER BY timestamp DESC, id DESC
+                LIMIT :lim OFFSET :off
+            """),
+            params,
+        ).mappings().all()
 
     logs = []
     for row in rows:
-        log_entry = {
-            "id": row["id"],
-            "timestamp": row["timestamp"],
-            "level": row["level"],
-            "category": row["category"],
-            "action": row["action"],
-            "message": row["message"],
-            "entity_type": row["entity_type"],
-            "entity_id": row["entity_id"],
-            "actor_type": row["actor_type"],
-            "actor_id": row["actor_id"],
-            "actor_name": row["actor_name"],
-            "data": row["data"],
-            "request_id": row["request_id"],
-            "ip_address": row["ip_address"],
-            "user_agent": row["user_agent"],
-        }
-        logs.append(log_entry)
+        entry = dict(row)
+        # Convert datetime to string for JSON
+        if isinstance(entry.get("timestamp"), datetime):
+            entry["timestamp"] = entry["timestamp"].isoformat()
+        logs.append(entry)
 
     return {
         "total": total,
@@ -121,22 +107,18 @@ def get_audit_stats(
     current_user: dict = Depends(get_current_user),
 ):
     """Получить статистику аудит-логов по категориям и уровням."""
-    conn = get_connection()
+    with engine.connect() as conn:
+        category_rows = conn.execute(
+            text("SELECT category, COUNT(*) as cnt FROM audit_log GROUP BY category ORDER BY cnt DESC")
+        ).mappings().all()
 
-    # По категориям
-    category_rows = conn.execute(
-        "SELECT category, COUNT(*) as cnt FROM audit_log GROUP BY category ORDER BY cnt DESC"
-    ).fetchall()
+        level_rows = conn.execute(
+            text("SELECT level, COUNT(*) as cnt FROM audit_log GROUP BY level ORDER BY cnt DESC")
+        ).mappings().all()
 
-    # По уровням
-    level_rows = conn.execute(
-        "SELECT level, COUNT(*) as cnt FROM audit_log GROUP BY level ORDER BY cnt DESC"
-    ).fetchall()
-
-    # Последние 24 часа
-    recent_count = conn.execute(
-        "SELECT COUNT(*) FROM audit_log WHERE timestamp >= datetime('now', '-1 day')"
-    ).fetchone()[0]
+        recent_count = conn.execute(
+            text("SELECT COUNT(*) FROM audit_log WHERE timestamp >= NOW() - INTERVAL '1 day'")
+        ).scalar()
 
     return {
         "by_category": {row["category"]: row["cnt"] for row in category_rows},

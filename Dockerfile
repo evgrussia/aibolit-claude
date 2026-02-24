@@ -20,9 +20,9 @@ FROM python:3.11-slim AS backend
 
 WORKDIR /app
 
-# Install system deps + Node.js for Claude Code CLI
+# Install system deps + Node.js for Claude Code CLI + PostgreSQL client libs
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends gcc curl && \
+    apt-get install -y --no-install-recommends gcc curl libpq-dev && \
     curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
     apt-get install -y --no-install-recommends nodejs && \
     npm install -g @anthropic-ai/claude-code && \
@@ -38,7 +38,7 @@ COPY pyproject.toml ./
 COPY src/ ./src/
 COPY web/backend/ ./web/backend/
 
-# Create data directory for SQLite
+# Create data directory
 RUN mkdir -p /app/data
 
 EXPOSE 8007

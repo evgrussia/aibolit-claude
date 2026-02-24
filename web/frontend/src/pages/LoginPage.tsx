@@ -5,7 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import type { RegisterData } from '../contexts/AuthContext';
 
 type Tab = 'login' | 'register';
-type RegStep = 0 | 1 | 2;
+type RegStep = 0 | 1 | 2 | 3;
 
 const GENDER_OPTIONS = [
   { value: 'male', label: 'Мужской' },
@@ -33,6 +33,7 @@ export default function LoginPage() {
     username: '', password: '', confirm: '',
     first_name: '', last_name: '', date_of_birth: '', gender: 'male',
     blood_type: '', allergies: '', family_history: '',
+    consent_personal_data: false, consent_medical_ai: false,
   });
   const [showRegPw, setShowRegPw] = useState(false);
 
@@ -66,6 +67,10 @@ export default function LoginPage() {
       setError('Пароль должен содержать буквы и цифры');
       return;
     }
+    if (!regData.consent_personal_data || !regData.consent_medical_ai) {
+      setError('Необходимо дать согласие на обработку данных и использование AI');
+      return;
+    }
 
     setLoading(true);
     try {
@@ -83,6 +88,8 @@ export default function LoginPage() {
         family_history: regData.family_history
           ? regData.family_history.split(',').map(s => s.trim()).filter(Boolean)
           : undefined,
+        consent_personal_data: regData.consent_personal_data,
+        consent_medical_ai: regData.consent_medical_ai,
       };
       await register(payload);
       navigate('/', { replace: true });
@@ -188,7 +195,7 @@ export default function LoginPage() {
               <form onSubmit={handleRegister} className="space-y-4">
                 {/* Step indicator */}
                 <div className="flex items-center gap-2 mb-2">
-                  {[0, 1, 2].map(s => (
+                  {[0, 1, 2, 3].map(s => (
                     <div key={s} className="flex items-center gap-2 flex-1">
                       <div className={`h-1.5 rounded-full flex-1 transition ${s <= regStep ? 'bg-medical-teal' : 'bg-gray-200'}`} />
                     </div>
@@ -198,6 +205,7 @@ export default function LoginPage() {
                   {regStep === 0 && 'Шаг 1: Учётные данные'}
                   {regStep === 1 && 'Шаг 2: Личные данные'}
                   {regStep === 2 && 'Шаг 3: Медицинские данные (необязательно)'}
+                  {regStep === 3 && 'Шаг 4: Согласия'}
                 </p>
 
                 {/* Step 0: Credentials */}
@@ -371,8 +379,57 @@ export default function LoginPage() {
                         Назад
                       </button>
                       <button
+                        type="button"
+                        onClick={() => { setError(''); setRegStep(3); }}
+                        className="flex-1 py-2.5 bg-gradient-to-r from-medical-navy to-medical-teal text-white rounded-xl font-medium text-sm hover:shadow-lg transition"
+                      >
+                        Далее
+                      </button>
+                    </div>
+                  </>
+                )}
+
+                {/* Step 3: Consent */}
+                {regStep === 3 && (
+                  <>
+                    <div className="space-y-3">
+                      <label className="flex items-start gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={regData.consent_personal_data}
+                          onChange={e => setRegData({ ...regData, consent_personal_data: e.target.checked })}
+                          className="mt-0.5 w-4 h-4 rounded border-gray-300 text-medical-teal focus:ring-medical-teal"
+                        />
+                        <span className="text-sm text-gray-700 leading-snug">
+                          Я даю согласие на обработку персональных данных в соответствии с Федеральным законом 152-ФЗ
+                          «О персональных данных»
+                        </span>
+                      </label>
+                      <label className="flex items-start gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={regData.consent_medical_ai}
+                          onChange={e => setRegData({ ...regData, consent_medical_ai: e.target.checked })}
+                          className="mt-0.5 w-4 h-4 rounded border-gray-300 text-medical-teal focus:ring-medical-teal"
+                        />
+                        <span className="text-sm text-gray-700 leading-snug">
+                          Я понимаю, что AI-ассистент не заменяет врача и предоставляет информацию
+                          исключительно справочного характера. Окончательные решения о диагностике
+                          и лечении принимает врач.
+                        </span>
+                      </label>
+                    </div>
+                    <div className="flex gap-3 mt-4">
+                      <button
+                        type="button"
+                        onClick={() => setRegStep(2)}
+                        className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-xl font-medium text-sm hover:bg-gray-50 transition"
+                      >
+                        Назад
+                      </button>
+                      <button
                         type="submit"
-                        disabled={loading}
+                        disabled={loading || !regData.consent_personal_data || !regData.consent_medical_ai}
                         className="flex-1 py-2.5 bg-gradient-to-r from-medical-navy to-medical-teal text-white rounded-xl font-medium text-sm hover:shadow-lg transition disabled:opacity-50 flex items-center justify-center gap-2"
                       >
                         {loading && <Loader2 size={16} className="animate-spin" />}

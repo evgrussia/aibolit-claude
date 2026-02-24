@@ -26,11 +26,14 @@ export interface RegisterData {
   blood_type?: string;
   allergies?: { substance: string; reaction?: string; severity?: string }[];
   family_history?: string[];
+  consent_personal_data: boolean;
+  consent_medical_ai: boolean;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 const TOKEN_KEY = 'aibolit_token';
+const REFRESH_KEY = 'aibolit_refresh_token';
 const PATIENT_KEY = 'aibolit_patient_id';
 const USERNAME_KEY = 'aibolit_username';
 
@@ -63,6 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       })
       .catch(() => {
         localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem(REFRESH_KEY);
         localStorage.removeItem(PATIENT_KEY);
         localStorage.removeItem(USERNAME_KEY);
         setState({ token: null, patientId: null, username: null, isAuthenticated: false, isLoading: false });
@@ -72,6 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (username: string, password: string) => {
     const { data } = await api.post('/auth/login', { username, password });
     localStorage.setItem(TOKEN_KEY, data.token);
+    localStorage.setItem(REFRESH_KEY, data.refresh_token);
     localStorage.setItem(PATIENT_KEY, data.patient_id);
     localStorage.setItem(USERNAME_KEY, data.username);
     setState({
@@ -86,6 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const register = useCallback(async (regData: RegisterData) => {
     const { data } = await api.post('/auth/register', regData);
     localStorage.setItem(TOKEN_KEY, data.token);
+    localStorage.setItem(REFRESH_KEY, data.refresh_token);
     localStorage.setItem(PATIENT_KEY, data.patient_id);
     localStorage.setItem(USERNAME_KEY, data.username);
     setState({
@@ -99,6 +105,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(() => {
     localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(REFRESH_KEY);
     localStorage.removeItem(PATIENT_KEY);
     localStorage.removeItem(USERNAME_KEY);
     setState({ token: null, patientId: null, username: null, isAuthenticated: false, isLoading: false });

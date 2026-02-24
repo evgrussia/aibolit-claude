@@ -10,6 +10,7 @@ from src.safety.red_flags import RedFlagDetector
 from src.utils.database import get_consultation_history, load_patient, save_consultation
 from ..auth import get_optional_user
 from ..services import claude_service
+from ..services.audit_service import AuditLogService
 from ..services.consultation_service import build_consultation
 from ..services.triage_service import engine as triage_engine
 
@@ -70,6 +71,20 @@ def triage(req: TriageRequest):
             {"description": f.description, "urgency": int(f.urgency), "action": f.action}
             for f in flags
         ]
+        AuditLogService.log_medical(
+            "red_flag_detected",
+            data={"source": "triage", "flags_count": len(flags),
+                  "emergency": bool([f for f in flags if f.urgency >= 5])},
+            actor="system",
+            level="WARNING",
+        )
+
+    AuditLogService.log_medical(
+        "triage_completed",
+        data={"recommendations_count": len(matches),
+              "top_specialty": matches[0].specialty_id if matches else None},
+    )
+
     return result
 
 
@@ -162,6 +177,13 @@ async def start_consultation(
         complaints=req.complaints,
         response=base,
         patient_id=patient_id,
+    )
+
+    AuditLogService.log_medical(
+        "ai_consultation_completed",
+        data={"specialty": req.specialty, "patient_id": patient_id,
+              "ai_generated": True, "red_flags_count": len(flags) if flags else 0},
+        actor=current_user,
     )
 
     return base

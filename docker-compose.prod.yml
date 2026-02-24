@@ -1,4 +1,19 @@
 services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: aibolit
+      POSTGRES_USER: aibolit
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - aibolit-claude-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aibolit"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
   backend:
     build:
       context: .
@@ -6,10 +21,15 @@ services:
     volumes:
       - aibolit-claude-data:/app/data
     environment:
+      - DATABASE_URL=postgresql://aibolit:${POSTGRES_PASSWORD}@db:5432/aibolit
       - AIBOLIT_SECRET_KEY=${AIBOLIT_SECRET_KEY}
+      - AIBOLIT_ENCRYPTION_KEY=${AIBOLIT_ENCRYPTION_KEY:-}
       - CLAUDE_CODE_OAUTH_TOKEN=${CLAUDE_CODE_OAUTH_TOKEN}
       - WHO_ICD_CLIENT_ID=${WHO_ICD_CLIENT_ID}
       - WHO_ICD_CLIENT_SECRET=${WHO_ICD_CLIENT_SECRET}
+    depends_on:
+      db:
+        condition: service_healthy
     restart: unless-stopped
     ports:
       - "127.0.0.1:8101:8007"
@@ -31,4 +51,5 @@ services:
     restart: unless-stopped
 
 volumes:
+  aibolit-claude-pgdata:
   aibolit-claude-data:

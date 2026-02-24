@@ -25,6 +25,7 @@ from ..schemas.patient import (
     AddAllergyRequest, UpdatePatientRequest,
     AllergySchema, MedicationSchema, DiagnosisSchema, LabResultSchema, VitalSignsSchema,
 )
+from ..services.audit_service import AuditLogService
 
 router = APIRouter(prefix="/patients", tags=["patients"])
 
@@ -124,7 +125,7 @@ def patients_by_diagnosis(icd10: str = Query(..., min_length=1), _: dict = Depen
 
 
 @router.post("", response_model=dict)
-def register_patient(req: RegisterPatientRequest, _: dict = Depends(get_current_user)):
+def register_patient(req: RegisterPatientRequest, current_user: dict = Depends(get_current_user)):
     dob = _parse_date(req.date_of_birth)
     gender = _parse_gender(req.gender)
     blood_type = _parse_blood_type(req.blood_type)
@@ -143,6 +144,9 @@ def register_patient(req: RegisterPatientRequest, _: dict = Depends(get_current_
         family_history=req.family_history,
     )
     pid = save_patient(patient)
+
+    AuditLogService.log_db_create("patient", pid, data={"name": patient.full_name}, actor=current_user)
+
     return {"id": pid, "message": f"Пациент {patient.full_name} зарегистрирован"}
 
 
@@ -160,6 +164,9 @@ def remove_patient(patient_id: str, current_user: dict | None = Depends(get_opti
     _check_patient_access(patient_id, current_user)
     if not delete_patient(patient_id):
         raise HTTPException(404, f"Пациент {patient_id} не найден")
+
+    AuditLogService.log_db_delete("patient", patient_id, actor=current_user)
+
     return {"message": "Пациент удалён"}
 
 
@@ -177,6 +184,15 @@ def add_vitals(patient_id: str, req: AddVitalsRequest, current_user: dict | None
         row_id = db_add_vitals(patient_id, vitals)
     except ValueError as e:
         raise HTTPException(404, str(e))
+
+    AuditLogService.log_medical(
+        "vital_recorded",
+        data={"patient_id": patient_id, "vitals_id": row_id,
+              "systolic_bp": req.systolic_bp, "diastolic_bp": req.diastolic_bp,
+              "heart_rate": req.heart_rate},
+        actor=current_user,
+    )
+
     return {"id": row_id, "message": "Витальные показатели записаны"}
 
 
@@ -194,6 +210,13 @@ def add_lab(patient_id: str, req: AddLabResultRequest, current_user: dict | None
         row_id = db_add_lab_result(patient_id, lr)
     except ValueError as e:
         raise HTTPException(404, str(e))
+
+    AuditLogService.log_medical(
+        "lab_result_added",
+        data={"patient_id": patient_id, "lab_id": row_id, "test_name": req.test_name},
+        actor=current_user,
+    )
+
     return {"id": row_id, "message": f"Результат '{req.test_name}' добавлен"}
 
 
@@ -268,6 +291,12 @@ def add_labs_bulk(
             ids.append(row_id)
         except ValueError as e:
             raise HTTPException(404, str(e))
+    AuditLogService.log_medical(
+        "bulk_labs_added",
+        data={"patient_id": patient_id, "count": len(ids)},
+        actor=current_user,
+    )
+
     return {"ids": ids, "count": len(ids), "message": f"Добавлено {len(ids)} результатов"}
 
 
@@ -285,6 +314,13 @@ def add_diag(patient_id: str, req: AddDiagnosisRequest, current_user: dict | Non
         row_id = db_add_diagnosis(patient_id, diag)
     except ValueError as e:
         raise HTTPException(404, str(e))
+
+    AuditLogService.log_medical(
+        "diagnosis_added",
+        data={"patient_id": patient_id, "diagnosis_id": row_id, "icd10_code": req.icd10_code},
+        actor=current_user,
+    )
+
     return {"id": row_id, "message": f"Диагноз {req.icd10_code} добавлен"}
 
 
@@ -299,6 +335,13 @@ def add_med(patient_id: str, req: AddMedicationRequest, current_user: dict | Non
         row_id = db_add_medication(patient_id, med)
     except ValueError as e:
         raise HTTPException(404, str(e))
+
+    AuditLogService.log_medical(
+        "medication_prescribed",
+        data={"patient_id": patient_id, "medication_id": row_id, "drug_name": req.name},
+        actor=current_user,
+    )
+
     return {"id": row_id, "message": f"Препарат '{req.name}' назначен"}
 
 
@@ -328,6 +371,13 @@ def add_allergy(patient_id: str, req: AddAllergyRequest, current_user: dict | No
         row_id = db_add_allergy(patient_id, allergy)
     except ValueError as e:
         raise HTTPException(404, str(e))
+
+    AuditLogService.log_medical(
+        "allergy_added",
+        data={"patient_id": patient_id, "allergy_id": row_id, "substance": req.substance},
+        actor=current_user,
+    )
+
     return {"id": row_id, "message": f"Аллергия '{req.substance}' добавлена"}
 
 
@@ -341,6 +391,9 @@ def delete_record(patient_id: str, table: str, record_id: int, current_user: dic
             raise HTTPException(404, "Запись не найдена")
     except ValueError as e:
         raise HTTPException(400, str(e))
+
+    AuditLogService.log_db_delete(table, record_id, actor=current_user)
+
     return {"message": "Запись удалена"}
 
 
@@ -358,6 +411,9 @@ def update_record(
             raise HTTPException(404, "Запись не найдена или нет изменений")
     except ValueError as e:
         raise HTTPException(400, str(e))
+
+    AuditLogService.log_db_update(table, record_id, new_values=fields, actor=current_user)
+
     return {"message": "Запись обновлена"}
 
 
@@ -412,5 +468,15 @@ def update_patient(patient_id: str, req: UpdatePatientRequest, current_user: dic
             if req.lifestyle is not None:
                 p.lifestyle = req.lifestyle
             save_patient(p)
+
+    all_changes = dict(core_fields)
+    if req.family_history is not None:
+        all_changes["family_history"] = "[updated]"
+    if req.surgical_history is not None:
+        all_changes["surgical_history"] = "[updated]"
+    if req.lifestyle is not None:
+        all_changes["lifestyle"] = "[updated]"
+
+    AuditLogService.log_db_update("patient", patient_id, new_values=all_changes, actor=current_user)
 
     return {"message": "Данные пациента обновлены"}

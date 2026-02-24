@@ -3,6 +3,7 @@ import type { RegisterData } from '../contexts/AuthContext';
 
 interface AuthResponse {
   token: string;
+  refresh_token: string;
   patient_id: string;
   username: string;
 }
@@ -38,5 +39,10 @@ export async function changePassword(oldPassword: string, newPassword: string) {
 
 export async function deleteAccount() {
   const { data } = await api.delete('/auth/me');
+  return data;
+}
+
+export async function refreshTokens(refreshToken: string): Promise<AuthResponse> {
+  const { data } = await api.post('/auth/refresh', { refresh_token: refreshToken });
   return data;
 }

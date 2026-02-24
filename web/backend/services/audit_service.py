@@ -13,7 +13,7 @@ from contextvars import ContextVar
 from datetime import datetime, timezone
 from typing import Any
 
-from src.utils.database import get_connection
+from src.utils.database import engine
 
 logger = logging.getLogger("aibolit.audit")
 
@@ -119,21 +119,27 @@ class AuditLogService:
                 if hasattr(request, "headers"):
                     user_agent = user_agent or request.headers.get("user-agent")
 
-            # Записываем в SQLite
-            conn = get_connection()
-            conn.execute(
-                """
-                INSERT INTO audit_log
-                    (level, category, action, message, entity_type, entity_id,
-                     actor_type, actor_id, actor_name, data, request_id, ip_address, user_agent)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    level, category, action, message, entity_type, str(entity_id) if entity_id else None,
-                    actor_type, actor_id, actor_name, data_json, req_id, ip_address, user_agent,
-                ),
-            )
-            conn.commit()
+            # Записываем в PostgreSQL
+            from sqlalchemy import text
+            with engine.begin() as conn:
+                conn.execute(
+                    text("""
+                    INSERT INTO audit_log
+                        (level, category, action, message, entity_type, entity_id,
+                         actor_type, actor_id, actor_name, data, request_id, ip_address, user_agent)
+                    VALUES (:level, :category, :action, :message, :entity_type, :entity_id,
+                            :actor_type, :actor_id, :actor_name, :data, :request_id, :ip_address, :user_agent)
+                    """),
+                    {
+                        "level": level, "category": category, "action": action,
+                        "message": message, "entity_type": entity_type,
+                        "entity_id": str(entity_id) if entity_id else None,
+                        "actor_type": actor_type, "actor_id": actor_id,
+                        "actor_name": actor_name, "data": data_json,
+                        "request_id": req_id, "ip_address": ip_address,
+                        "user_agent": user_agent,
+                    },
+                )
 
             # Записываем в Python logger
             log_level = getattr(logging, level.upper(), logging.INFO)

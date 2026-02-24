@@ -19,7 +19,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from src.utils.database import init_db
+from src.utils.database import init_db, close_db
 from .config import CORS_ORIGINS
 from .routers import auth, patients, consultations, diagnostics, drugs, documents, reference, knowledge, chat, audit
 from .services.audit_service import request_id_var, request_ip_var, request_ua_var
@@ -36,8 +36,9 @@ logger = logging.getLogger("aibolit")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
-    logger.info("Aibolit backend started")
+    logger.info("Aibolit backend started (PostgreSQL)")
     yield
+    close_db()
     logger.info("Aibolit backend shutting down")
 
 

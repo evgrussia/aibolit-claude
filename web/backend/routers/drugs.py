@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 from src.integrations.openfda import search_drug, get_adverse_events
 from src.tools.diagnostic import check_drug_interactions_local
+from ..services.audit_service import AuditLogService
 
 logger = logging.getLogger("aibolit.drugs")
 router = APIRouter(prefix="/drugs", tags=["drugs"])
@@ -54,4 +55,12 @@ async def adverse_events(drug_name: str, limit: int = Query(10, le=50)):
 
 @router.post("/interactions")
 def drug_interactions(req: InteractionRequest):
-    return check_drug_interactions_local(req.drugs)
+    result = check_drug_interactions_local(req.drugs)
+
+    if result:
+        AuditLogService.log_medical(
+            "drug_interactions_checked",
+            data={"drugs": req.drugs, "interactions_found": len(result)},
+        )
+
+    return result

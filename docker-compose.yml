@@ -1,4 +1,21 @@
 services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: aibolit
+      POSTGRES_USER: aibolit
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aibolit}
+    volumes:
+      - aibolit-pgdata:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aibolit"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
   backend:
     build:
       context: .
@@ -6,8 +23,12 @@ services:
     volumes:
       - aibolit-data:/app/data
     environment:
+      - DATABASE_URL=postgresql://aibolit:${POSTGRES_PASSWORD:-aibolit}@db:5432/aibolit
       - AIBOLIT_SECRET_KEY=${AIBOLIT_SECRET_KEY:-aibolit-secret-key-change-in-production}
       - CLAUDE_CODE_OAUTH_TOKEN=${CLAUDE_CODE_OAUTH_TOKEN:-}
+    depends_on:
+      db:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8007/api/health')"]
@@ -27,4 +48,5 @@ services:
     restart: unless-stopped
 
 volumes:
+  aibolit-pgdata:
   aibolit-data:

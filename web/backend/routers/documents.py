@@ -16,6 +16,7 @@ from src.utils.database import (
     save_document, list_documents, get_document, delete_document,
 )
 from ..auth import get_current_user
+from ..services.audit_service import AuditLogService
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -144,6 +145,13 @@ async def upload_document(
         content=content,
         notes=notes,
     )
+
+    AuditLogService.log_db_create(
+        "document", doc_id,
+        data={"patient_id": patient_id, "file_name": safe_name, "file_type": content_type, "file_size": len(content)},
+        actor=current_user,
+    )
+
     return {"id": doc_id, "file_name": safe_name, "file_size": len(content)}
 
 
@@ -163,6 +171,12 @@ def download_document(doc_id: int, current_user: dict = Depends(get_current_user
     # Ownership check
     if doc["patient_id"] != current_user.get("patient_id"):
         raise HTTPException(403, "Нет доступа к этому документу")
+    AuditLogService.log_business(
+        "document_downloaded",
+        data={"document_id": doc_id, "patient_id": doc["patient_id"], "file_name": doc["file_name"]},
+        actor=current_user,
+    )
+
     safe_name = _sanitize_filename(doc["file_name"])
     return Response(
         content=doc["content"],
@@ -179,4 +193,10 @@ def remove_document(doc_id: int, current_user: dict = Depends(get_current_user))
     if doc["patient_id"] != current_user.get("patient_id"):
         raise HTTPException(403, "Нет доступа к этому документу")
     delete_document(doc_id)
+
+    AuditLogService.log_db_delete(
+        "document", doc_id,
+        actor=current_user,
+    )
+
     return {"ok": True}

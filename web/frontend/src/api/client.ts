@@ -6,33 +6,87 @@ const api = axios.create({
   timeout: 15000,
 });
 
+const TOKEN_KEY = 'aibolit_token';
+const REFRESH_KEY = 'aibolit_refresh_token';
+const PATIENT_KEY = 'aibolit_patient_id';
+const USERNAME_KEY = 'aibolit_username';
+
+let isRefreshing = false;
+let refreshSubscribers: ((token: string) => void)[] = [];
+
+function onRefreshed(token: string) {
+  refreshSubscribers.forEach(cb => cb(token));
+  refreshSubscribers = [];
+}
+
 // Attach auth token to every request
 api.interceptors.request.use(config => {
-  const token = localStorage.getItem('aibolit_token');
+  const token = localStorage.getItem(TOKEN_KEY);
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
 });
 
-// Normalize error messages + handle 401
+// Normalize error messages + handle 401 with auto-refresh
 api.interceptors.response.use(
   res => res,
-  err => {
+  async err => {
     if (err.code === 'ECONNABORTED') throw new Error('Превышено время ожидания. Проверьте подключение к серверу.');
     if (!err.response) throw new Error('Сервер недоступен. Убедитесь, что backend запущен.');
-    // On 401, clear token and redirect to login
-    if (err.response.status === 401) {
-      localStorage.removeItem('aibolit_token');
-      localStorage.removeItem('aibolit_patient_id');
-      localStorage.removeItem('aibolit_username');
-      if (window.location.pathname !== '/login') {
-        window.location.href = '/login';
+
+    const originalRequest = err.config;
+
+    // On 401, try to refresh the token (skip for auth endpoints)
+    if (err.response.status === 401 && !originalRequest._retry && !originalRequest.url?.includes('/auth/')) {
+      originalRequest._retry = true;
+      const refreshToken = localStorage.getItem(REFRESH_KEY);
+
+      if (!refreshToken) {
+        clearAuth();
+        return Promise.reject(err);
+      }
+
+      if (isRefreshing) {
+        // Wait for the refresh to complete
+        return new Promise(resolve => {
+          refreshSubscribers.push((newToken: string) => {
+            originalRequest.headers.Authorization = `Bearer ${newToken}`;
+            resolve(api(originalRequest));
+          });
+        });
+      }
+
+      isRefreshing = true;
+      try {
+        const { data } = await axios.post('/api/v1/auth/refresh', { refresh_token: refreshToken });
+        localStorage.setItem(TOKEN_KEY, data.token);
+        localStorage.setItem(REFRESH_KEY, data.refresh_token);
+        isRefreshing = false;
+        onRefreshed(data.token);
+        originalRequest.headers.Authorization = `Bearer ${data.token}`;
+        return api(originalRequest);
+      } catch {
+        isRefreshing = false;
+        refreshSubscribers = [];
+        clearAuth();
+        return Promise.reject(err);
       }
     }
+
     const detail = err.response?.data?.detail;
     throw new Error(detail || `Ошибка ${err.response.status}`);
   }
 );
+
+function clearAuth() {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(REFRESH_KEY);
+  localStorage.removeItem(PATIENT_KEY);
+  localStorage.removeItem(USERNAME_KEY);
+  if (window.location.pathname !== '/login') {
+    window.location.href = '/login';
+  }
+}
 
 export default api;

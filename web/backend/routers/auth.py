@@ -1,7 +1,6 @@
 """Authentication endpoints: register, login, me."""
 import logging
 import re
-import sqlite3
 import uuid
 from datetime import date
 
@@ -13,8 +12,12 @@ from src.utils.database import (
     save_patient, create_user, get_user_by_username, get_user_by_id,
     link_user_to_patient, update_user_password, delete_user,
 )
-from ..auth import hash_password, verify_password, create_token, get_current_user
+from ..auth import (
+    hash_password, verify_password, create_token, get_current_user,
+    create_access_token, create_refresh_token, decode_token,
+)
 from ..rate_limit import check_auth_rate_limit, check_register_rate_limit
+from ..services.audit_service import AuditLogService
 
 logger = logging.getLogger("aibolit.auth")
 
@@ -69,6 +72,8 @@ class RegisterRequest(BaseModel):
     blood_type: str | None = None
     allergies: list[dict] | None = None
     family_history: list[str] | None = None
+    consent_personal_data: bool = False
+    consent_medical_ai: bool = False
 
 
 class LoginRequest(BaseModel):
@@ -76,8 +81,13 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+
 class AuthResponse(BaseModel):
     token: str
+    refresh_token: str
     patient_id: str
     username: str
 
@@ -96,6 +106,19 @@ class MeResponse(BaseModel):
 @router.post("/register", response_model=AuthResponse)
 def register(req: RegisterRequest, request: Request):
     check_register_rate_limit(request)
+
+    # R1.5: Informed consent validation
+    if not req.consent_personal_data:
+        raise HTTPException(
+            400,
+            "Необходимо согласие на обработку персональных данных (152-ФЗ)",
+        )
+    if not req.consent_medical_ai:
+        raise HTTPException(
+            400,
+            "Необходимо согласие на использование AI-ассистента. "
+            "AI не заменяет врача и предоставляет информацию справочного характера.",
+        )
 
     if get_user_by_username(req.username):
         raise HTTPException(409, "Пользователь с таким логином уже существует")
@@ -127,15 +150,24 @@ def register(req: RegisterRequest, request: Request):
     pw_hash = hash_password(req.password)
     try:
         user_id = create_user(req.username, pw_hash, patient_id)
-    except (sqlite3.IntegrityError, Exception) as e:
+    except Exception as e:
         if "UNIQUE" in str(e).upper() or "unique" in str(e).lower():
             raise HTTPException(409, "Пользователь с таким логином уже существует")
         logger.exception("Failed to create user: %s", req.username)
         raise HTTPException(500, "Ошибка при создании аккаунта")
 
     logger.info("[REGISTER] user=%s, patient=%s", req.username, patient_id)
-    token = create_token(user_id, patient_id, username=req.username)
-    return AuthResponse(token=token, patient_id=patient_id, username=req.username)
+
+    AuditLogService.log_security(
+        "user_registered",
+        f"Зарегистрирован пользователь {req.username}",
+        data={"user_id": user_id, "patient_id": patient_id, "username": req.username},
+        request=request,
+    )
+
+    token = create_access_token(user_id, patient_id, username=req.username)
+    refresh = create_refresh_token(user_id, patient_id, username=req.username)
+    return AuthResponse(token=token, refresh_token=refresh, patient_id=patient_id, username=req.username)
 
 
 @router.post("/login", response_model=AuthResponse)
@@ -145,12 +177,29 @@ def login(req: LoginRequest, request: Request):
     user = get_user_by_username(req.username)
     if not user or not verify_password(req.password, user["password_hash"]):
         logger.warning("[LOGIN_FAIL] user=%s", req.username)
+        AuditLogService.log_security(
+            "login_failed",
+            f"Неудачная попытка входа: {req.username}",
+            data={"username": req.username},
+            request=request,
+        )
         raise HTTPException(401, "Неверный логин или пароль")
 
     logger.info("[LOGIN] user=%s, patient=%s", user["username"], user["patient_id"])
-    token = create_token(user["id"], user["patient_id"], username=user["username"])
+
+    AuditLogService.log_security(
+        "user_logged_in",
+        f"Пользователь {user['username']} вошёл в систему",
+        data={"user_id": user["id"], "patient_id": user["patient_id"]},
+        actor={"user_id": user["id"], "username": user["username"]},
+        request=request,
+    )
+
+    token = create_access_token(user["id"], user["patient_id"], username=user["username"])
+    refresh = create_refresh_token(user["id"], user["patient_id"], username=user["username"])
     return AuthResponse(
         token=token,
+        refresh_token=refresh,
         patient_id=user["patient_id"] or "",
         username=user["username"],
     )
@@ -178,6 +227,13 @@ def change_password(req: ChangePasswordRequest, current_user: dict = Depends(get
     _validate_password(req.new_password)
     new_hash = hash_password(req.new_password)
     update_user_password(current_user["user_id"], new_hash)
+
+    AuditLogService.log_security(
+        "password_changed",
+        f"Пользователь {user['username']} сменил пароль",
+        actor=current_user,
+    )
+
     return {"message": "Пароль успешно изменён"}
 
 
@@ -185,4 +241,35 @@ def change_password(req: ChangePasswordRequest, current_user: dict = Depends(get
 def delete_account(current_user: dict = Depends(get_current_user)):
     if not delete_user(current_user["user_id"]):
         raise HTTPException(404, "Пользователь не найден")
+
+    AuditLogService.log_security(
+        "account_deleted",
+        f"Аккаунт удалён: user_id={current_user['user_id']}",
+        data={"user_id": current_user["user_id"], "patient_id": current_user.get("patient_id")},
+        actor=current_user,
+    )
+
     return {"message": "Аккаунт удалён"}
+
+
+@router.post("/refresh", response_model=AuthResponse)
+def refresh_token(req: RefreshRequest):
+    """Exchange a valid refresh token for new access + refresh tokens."""
+    payload = decode_token(req.refresh_token)
+
+    if payload.get("type") != "refresh":
+        raise HTTPException(401, "Недействительный refresh-токен")
+
+    user = get_user_by_id(payload["user_id"])
+    if not user:
+        raise HTTPException(401, "Пользователь не найден")
+
+    new_access = create_access_token(user["id"], user["patient_id"], username=user["username"])
+    new_refresh = create_refresh_token(user["id"], user["patient_id"], username=user["username"])
+
+    return AuthResponse(
+        token=new_access,
+        refresh_token=new_refresh,
+        patient_id=user["patient_id"] or "",
+        username=user["username"],
+    )
