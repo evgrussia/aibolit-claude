@@ -25,11 +25,20 @@ export interface ChatErrorEvent {
   error: string;
 }
 
+export interface ChatReferralEvent {
+  referrals: Array<{
+    specialty_id: string;
+    name: string;
+    specialty_name: string;
+  }>;
+}
+
 export type ChatSSEHandler = {
   onMeta?: (data: ChatMetaEvent) => void;
   onDelta?: (data: ChatDeltaEvent) => void;
   onDone?: (data: ChatDoneEvent) => void;
   onError?: (data: ChatErrorEvent) => void;
+  onReferral?: (data: ChatReferralEvent) => void;
 };
 
 /**
@@ -173,6 +182,9 @@ async function _processSSE(res: Response, handlers: ChatSSEHandler): Promise<voi
               break;
             case 'error':
               handlers.onError?.(data);
+              break;
+            case 'referral':
+              handlers.onReferral?.(data);
               break;
           }
         } catch {

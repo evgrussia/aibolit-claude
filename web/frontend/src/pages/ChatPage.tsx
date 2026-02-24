@@ -3,11 +3,12 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
   Stethoscope, Send, Paperclip, X, FileText,
   Image as ImageIcon, AlertTriangle, Sparkles, ArrowLeft, XCircle,
+  ArrowRightCircle, Loader2,
 } from 'lucide-react';
 import DOMPurify from 'dompurify';
 import clsx from 'clsx';
-import { getChatInfo, getMessages, sendMessage, closeChat } from '../api/chat';
-import type { ChatSSEHandler, ChatMetaEvent } from '../api/chat';
+import { getChatInfo, getMessages, sendMessage, closeChat, createChat } from '../api/chat';
+import type { ChatSSEHandler, ChatMetaEvent, ChatReferralEvent } from '../api/chat';
 import type { ChatMessage, ChatDoctor, ChatAttachment } from '../types/patient';
 import EmergencyBanner from '../components/shared/EmergencyBanner';
 import LoadingSpinner from '../components/shared/LoadingSpinner';
@@ -28,6 +29,10 @@ export default function ChatPage() {
   const [disclaimer, setDisclaimer] = useState(FALLBACK_DISCLAIMER);
   const [emergency, setEmergency] = useState<ChatMetaEvent['emergency'] | null>(null);
   const [redFlags, setRedFlags] = useState<ChatMetaEvent['red_flags'] | null>(null);
+
+  const [referrals, setReferrals] = useState<ChatReferralEvent['referrals']>([]);
+  const [originalComplaints, setOriginalComplaints] = useState('');
+  const [navigatingToSpec, setNavigatingToSpec] = useState<string | null>(null);
 
   const [input, setInput] = useState('');
   const [files, setFiles] = useState<File[]>([]);
@@ -65,6 +70,7 @@ export default function ChatPage() {
         setDoctor(info.doctor);
         setStatus(info.status);
         setMessages(msgs);
+        if (info.complaints) setOriginalComplaints(info.complaints);
       } catch (err) {
         if (!cancelled) setError((err as Error).message);
       } finally {
@@ -92,6 +98,7 @@ export default function ChatPage() {
     setFiles([]);
     setStreaming(true);
     setStreamText('');
+    setReferrals([]);
 
     // Optimistically add user message
     const optimisticMsg: ChatMessage = {
@@ -138,6 +145,9 @@ export default function ChatPage() {
         setStreamText('');
         setStreaming(false);
       },
+      onReferral: (data) => {
+        if (data.referrals?.length) setReferrals(data.referrals);
+      },
     };
 
     try {
@@ -167,6 +177,40 @@ export default function ChatPage() {
   const removeFile = (idx: number) => {
     setFiles(prev => prev.filter((_, i) => i !== idx));
   };
+
+  const handleReferral = useCallback(async (specialtyId: string) => {
+    setNavigatingToSpec(specialtyId);
+    try {
+      let newConsultationId: number | null = null;
+      const handlers: ChatSSEHandler = {
+        onMeta: (data) => {
+          if (data.consultation_id) newConsultationId = data.consultation_id;
+        },
+      };
+      const ac = new AbortController();
+      const promise = createChat(specialtyId, originalComplaints, handlers, ac.signal);
+      // Wait up to 3s for meta event with consultation_id
+      const timeout = setTimeout(() => {
+        if (newConsultationId) {
+          ac.abort();
+          navigate(`/chat/${newConsultationId}`);
+        }
+      }, 3000);
+      await promise.catch(() => {});
+      clearTimeout(timeout);
+      if (newConsultationId) {
+        navigate(`/chat/${newConsultationId}`);
+      } else {
+        toast.error('Не удалось создать чат');
+      }
+    } catch (err) {
+      if ((err as Error).name !== 'AbortError') {
+        toast.error((err as Error).message || 'Ошибка создания чата');
+      }
+    } finally {
+      setNavigatingToSpec(null);
+    }
+  }, [originalComplaints, navigate, toast]);
 
   const handleClose = async () => {
     try {
@@ -273,6 +317,15 @@ export default function ChatPage() {
           </div>
         )}
 
+        {/* Referral cards */}
+        {!streaming && referrals.length > 0 && (
+          <ReferralCard
+            referrals={referrals}
+            onNavigate={handleReferral}
+            navigatingToSpec={navigatingToSpec}
+          />
+        )}
+
         <div ref={messagesEndRef} />
       </div>
 
@@ -339,8 +392,23 @@ export default function ChatPage() {
           </div>
         </div>
       ) : (
-        <div className="border-t border-gray-100 pt-3 text-center">
-          <p className="text-sm text-gray-400 mb-2">Консультация завершена</p>
+        <div className="border-t border-gray-100 pt-3 text-center space-y-2">
+          <p className="text-sm text-gray-400">Консультация завершена</p>
+          {referrals.length > 0 && (
+            <div className="flex flex-wrap justify-center gap-2">
+              {referrals.map(ref => (
+                <button
+                  key={ref.specialty_id}
+                  onClick={() => handleReferral(ref.specialty_id)}
+                  disabled={navigatingToSpec !== null}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-50 border border-violet-200 rounded-lg text-xs font-medium text-violet-700 hover:bg-violet-100 transition-colors disabled:opacity-50"
+                >
+                  {navigatingToSpec === ref.specialty_id ? <Loader2 size={12} className="animate-spin" /> : <Stethoscope size={12} />}
+                  {ref.specialty_name}
+                </button>
+              ))}
+            </div>
+          )}
           <button
             onClick={() => navigate('/consult')}
             className="text-sm text-medical-teal hover:underline"
@@ -421,6 +489,52 @@ function AttachmentChip({ attachment, isUser }: { attachment: ChatAttachment; is
       {isImage ? <ImageIcon size={12} /> : <FileText size={12} />}
       <span className="max-w-[100px] truncate">{attachment.file_name}</span>
     </a>
+  );
+}
+
+
+function ReferralCard({
+  referrals,
+  onNavigate,
+  navigatingToSpec,
+}: {
+  referrals: ChatReferralEvent['referrals'];
+  onNavigate: (specialtyId: string) => void;
+  navigatingToSpec: string | null;
+}) {
+  return (
+    <div className="flex justify-start">
+      <div className="max-w-[90%] sm:max-w-[80%] p-3 sm:p-4 rounded-2xl rounded-bl-sm bg-gradient-to-br from-violet-50 to-blue-50 border border-violet-200/60 shadow-sm">
+        <div className="flex items-center gap-2 mb-2.5">
+          <ArrowRightCircle size={16} className="text-violet-500" />
+          <span className="text-xs sm:text-sm font-medium text-violet-700">Рекомендованные специалисты</span>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {referrals.map(ref => {
+            const isNavigating = navigatingToSpec === ref.specialty_id;
+            return (
+              <button
+                key={ref.specialty_id}
+                onClick={() => onNavigate(ref.specialty_id)}
+                disabled={navigatingToSpec !== null}
+                className="flex items-center gap-1.5 px-3 py-2 bg-white border border-violet-200 rounded-xl text-xs sm:text-sm font-medium text-violet-700 hover:bg-violet-50 hover:border-violet-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+              >
+                {isNavigating ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <Stethoscope size={14} />
+                )}
+                <span>{ref.specialty_name}</span>
+                {!isNavigating && <ArrowRightCircle size={12} className="text-violet-400" />}
+              </button>
+            );
+          })}
+        </div>
+        <p className="text-[10px] text-violet-400 mt-2">
+          Нажмите, чтобы начать новую консультацию с этим специалистом
+        </p>
+      </div>
+    </div>
   );
 }
 

@@ -47,6 +47,23 @@ _DATA_DIR = os.path.join(
 )
 
 
+def _build_referral_event(ai_text: str, current_specialty: str) -> list[dict]:
+    """Detect specialist referrals in AI response and enrich with display names."""
+    raw = chat_service.detect_referrals(ai_text, current_specialty)
+    if not raw:
+        return []
+    enriched: list[dict] = []
+    for ref in raw:
+        ref_spec = get_specialization(ref["specialty_id"])
+        if ref_spec:
+            enriched.append({
+                "specialty_id": ref_spec.id,
+                "name": f"AI-{ref_spec.name_ru}",
+                "specialty_name": ref_spec.name_ru,
+            })
+    return enriched
+
+
 class ChatCreateRequest(BaseModel):
     specialty: str
     complaints: str
@@ -173,6 +190,11 @@ async def create_chat(
                 consultation_id, len(full_text), msg_id,
             )
             yield f"event: done\ndata: {json.dumps({'message_id': msg_id, 'full_text': full_text}, ensure_ascii=False)}\n\n"
+
+            # Detect referrals to other specialists
+            referral_events = _build_referral_event(full_text, req.specialty)
+            if referral_events:
+                yield f"event: referral\ndata: {json.dumps({'referrals': referral_events}, ensure_ascii=False)}\n\n"
         else:
             logger.warning("[CHAT_CREATE_EMPTY] consultation=%s, empty AI response", consultation_id)
             yield f"event: error\ndata: {json.dumps({'error': 'Пустой ответ от AI'}, ensure_ascii=False)}\n\n"
@@ -340,6 +362,11 @@ async def send_chat_message(
                 consultation_id, len(full_text), msg_id,
             )
             yield f"event: done\ndata: {json.dumps({'message_id': msg_id, 'full_text': full_text}, ensure_ascii=False)}\n\n"
+
+            # Detect referrals to other specialists
+            referral_events = _build_referral_event(full_text, consultation["specialty"])
+            if referral_events:
+                yield f"event: referral\ndata: {json.dumps({'referrals': referral_events}, ensure_ascii=False)}\n\n"
         else:
             logger.warning("[CHAT_MSG_EMPTY] consultation=%s, empty AI response", consultation_id)
             yield f"event: error\ndata: {json.dumps({'error': 'Пустой ответ от AI'}, ensure_ascii=False)}\n\n"

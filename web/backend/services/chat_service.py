@@ -18,6 +18,93 @@ from src.agents.specializations import Specialization
 
 logger = logging.getLogger("aibolit.chat_service")
 
+# ── Referral detection ────────────────────────────────────
+
+# Specialty stems sorted by length (longest first) to avoid false substring matches.
+# Each stem is matched with \b word-boundary at the start, so "кардиохирург" won't
+# match the "хирург" entry.
+_SPECIALTY_STEMS: list[tuple[str, str]] = [
+    ("оториноларинголог", "ent"),
+    ("гастроэнтеролог", "gastroenterologist"),
+    ("отоларинголог", "ent"),
+    ("кардиохирург", "cardiac_surgeon"),
+    ("нейрохирург", "neurosurgeon"),
+    ("психотерапевт", "psychiatrist"),
+    ("реаниматолог", "intensivist"),
+    ("анестезиолог", "intensivist"),
+    ("реабилитолог", "rehabilitation"),
+    ("пульмонолог", "pulmonologist"),
+    ("эндокринолог", "endocrinologist"),
+    ("ревматолог", "rheumatologist"),
+    ("дерматолог", "dermatologist"),
+    ("офтальмолог", "ophthalmologist"),
+    ("травматолог", "orthopedist"),
+    ("инфекционист", "infectionist"),
+    ("фармаколог", "pharmacologist"),
+    ("кардиолог", "cardiologist"),
+    ("гематолог", "hematologist"),
+    ("стоматолог", "dentist"),
+    ("аллерголог", "allergist"),
+    ("иммунолог", "allergist"),
+    ("ангиолог", "vascular_surgeon"),
+    ("невролог", "neurologist"),
+    ("нефролог", "nephrologist"),
+    ("онколог", "oncologist"),
+    ("гинеколог", "gynecologist"),
+    ("психиатр", "psychiatrist"),
+    ("уролог", "urologist"),
+    ("хирург", "surgeon"),
+    ("ортопед", "orthopedist"),
+    ("педиатр", "pediatrician"),
+    ("генетик", "geneticist"),
+    ("диетолог", "nutritionist"),
+    ("гериатр", "geriatrician"),
+    ("радиолог", "radiologist"),
+    ("терапевт", "therapist"),
+    ("лор", "ent"),
+]
+
+_REFERRAL_CONTEXT_RE = re.compile(
+    r'(обратиться|обратитесь|консультаци\w*|рекоменду\w*|направ\w*|'
+    r'посетить|посетите|записаться|показан\w*|'
+    r'необходим\w*|советую|предлагаю|следует|стоит\s+обратиться|'
+    r'стоит\s+посетить|важно\s+обратиться)',
+    re.IGNORECASE,
+)
+
+
+def detect_referrals(text: str, current_specialty: str) -> list[dict[str, str]]:
+    """Detect mentions of other medical specialties in AI response text.
+
+    Returns list of dicts with specialty_id for each detected referral.
+    Only includes specialties mentioned near referral-like phrases.
+    """
+    found: dict[str, str] = {}  # specialty_id -> keyword
+
+    for keyword, spec_id in _SPECIALTY_STEMS:
+        if spec_id == current_specialty or spec_id in found:
+            continue
+        # Short keywords (<=3 chars like "лор") use full word boundary
+        if len(keyword) <= 3:
+            pattern = re.compile(r'\b' + re.escape(keyword) + r'\b', re.IGNORECASE)
+        else:
+            pattern = re.compile(r'\b' + re.escape(keyword), re.IGNORECASE)
+        match = pattern.search(text)
+        if not match:
+            continue
+        # Check referral-like context within 200 chars around the match
+        start = max(0, match.start() - 200)
+        end = min(len(text), match.end() + 200)
+        context_window = text[start:end]
+        if _REFERRAL_CONTEXT_RE.search(context_window):
+            found[spec_id] = keyword
+
+    logger.info(
+        "[REFERRAL_DETECT] current=%s, found=%d referrals: %s",
+        current_specialty, len(found), list(found.keys()),
+    )
+    return [{"specialty_id": sid} for sid in found]
+
 _TIMEOUT = int(os.environ.get("CLAUDE_TIMEOUT", "120"))
 _MODEL = os.environ.get("CLAUDE_MODEL", "sonnet")
 
@@ -93,6 +180,7 @@ def build_system_prompt(
 - Используй формулировки "ВОЗМОЖНО", "МОЖЕТ БЫТЬ СВЯЗАНО С", "РЕКОМЕНДУЕТСЯ ОБСУДИТЬ С ВРАЧОМ"
 - НИКОГДА не используй формулировки "У вас [диагноз]", "Вам нужно принимать [лекарство]"
 - Если пациент прикрепил файл (изображение, PDF), прочитай и проанализируй его
+- Если симптомы пациента выходят за рамки твоей специализации, рекомендуй обратиться к конкретному специалисту клиники Aibolit (например, "рекомендую обратиться к кардиологу", "советую консультацию невролога")
 - В конце каждого ответа напоминай: рекомендации носят информационный характер
 """)
 
