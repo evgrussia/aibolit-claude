@@ -105,11 +105,17 @@ export async function createChat(
   complaints: string,
   handlers: ChatSSEHandler,
   signal?: AbortSignal,
+  parentConsultationId?: number,
+  referralReason?: string,
 ): Promise<void> {
+  const payload: Record<string, unknown> = { specialty, complaints };
+  if (parentConsultationId) payload.parent_consultation_id = parentConsultationId;
+  if (referralReason) payload.referral_reason = referralReason;
+
   const res = await _fetchWithAuth('/api/v1/chat/create', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ specialty, complaints }),
+    body: JSON.stringify(payload),
     signal,
   });
 

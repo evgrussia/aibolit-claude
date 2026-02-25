@@ -14,7 +14,7 @@ import shutil
 import time
 from typing import AsyncIterator
 
-from src.agents.specializations import Specialization
+from src.agents.specializations import Specialization, get_specialization
 
 logger = logging.getLogger("aibolit.chat_service")
 
@@ -145,8 +145,14 @@ def build_system_prompt(
     specialty_name: str,
     patient_context: str,
     specialization: Specialization | None = None,
+    referral_context: str = "",
 ) -> str:
-    """Build the system prompt for a chat consultation session."""
+    """Build the system prompt for a chat consultation session.
+
+    Args:
+        referral_context: Pre-built text with referral chain history
+            (previous consultations, their findings, and reason for referral).
+    """
     parts: list[str] = []
 
     parts.append(f"Ты — AI-{specialty_name} в виртуальной клинике Aibolit.")
@@ -172,6 +178,16 @@ def build_system_prompt(
             "хронические заболевания и предыдущие результаты обследований."
         )
 
+    # Referral chain context — previous consultations and reason for this one
+    if referral_context:
+        parts.append(f"\n{referral_context}")
+        parts.append(
+            "\nУчитывай контекст предыдущих консультаций. "
+            "Если пациент направлен к тебе от другого специалиста, "
+            "начни с краткого подтверждения причины направления и "
+            "сразу перейди к вопросам по своей специализации."
+        )
+
     parts.append("""
 Правила:
 - Отвечай на русском языке
@@ -186,12 +202,60 @@ def build_system_prompt(
 
     prompt = "\n".join(parts)
     logger.info(
-        "[PROMPT] Built system prompt: specialty=%s, patient_context=%s, prompt_len=%d",
+        "[PROMPT] Built system prompt: specialty=%s, patient_context=%s, referral=%s, prompt_len=%d",
         specialty_name,
         "loaded" if patient_context != "Карта пациента не загружена" else "none",
+        "yes" if referral_context else "no",
         len(prompt),
     )
     return prompt
+
+
+def build_referral_context_text(
+    chain: list[dict],
+    current_messages_summary: str = "",
+    referral_reason: str = "",
+) -> str:
+    """Build a text block describing the referral chain for the system prompt.
+
+    Args:
+        chain: List of consultation dicts from get_consultation_chain() (oldest first),
+               NOT including the current (new) consultation.
+        current_messages_summary: Conversation summary of the most recent (parent) consultation.
+        referral_reason: Why the patient was referred to this specialist.
+    """
+    if not chain:
+        return ""
+
+    parts: list[str] = []
+    parts.append("=== КОНТЕКСТ ПРЕДЫДУЩИХ КОНСУЛЬТАЦИЙ ===")
+
+    if referral_reason:
+        parts.append(f"\nПричина направления к тебе: {referral_reason}")
+
+    for i, c in enumerate(chain, 1):
+        spec_obj = get_specialization(c.get("specialty", ""))
+        spec_name = spec_obj.name_ru if spec_obj else c.get("specialty", "неизвестно")
+        parts.append(f"\n--- Консультация #{i}: AI-{spec_name} ---")
+
+        complaints = c.get("complaints", "")
+        if complaints:
+            parts.append(f"Жалобы пациента: {complaints[:500]}")
+
+        summary = c.get("referral_summary", "")
+        if summary:
+            parts.append(f"Итоги консультации: {summary}")
+
+        if c.get("referral_reason"):
+            parts.append(f"Причина направления на эту консультацию: {c['referral_reason']}")
+
+    # Include conversation from the most recent (parent) consultation
+    if current_messages_summary:
+        parts.append("\n--- Диалог последней консультации ---")
+        parts.append(current_messages_summary)
+
+    parts.append("\n=== КОНЕЦ КОНТЕКСТА ПРЕДЫДУЩИХ КОНСУЛЬТАЦИЙ ===")
+    return "\n".join(parts)
 
 
 async def start_session(

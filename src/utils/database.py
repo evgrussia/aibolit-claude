@@ -198,6 +198,9 @@ _TABLES_SQL = [
         status          TEXT NOT NULL DEFAULT 'legacy',
         title           TEXT NOT NULL DEFAULT '',
         session_id      TEXT,
+        parent_consultation_id INTEGER REFERENCES consultations(id) ON DELETE SET NULL,
+        referral_reason TEXT NOT NULL DEFAULT '',
+        referral_summary TEXT NOT NULL DEFAULT '',
         created_at      TIMESTAMP NOT NULL DEFAULT NOW()
     )
     """,
@@ -319,6 +322,19 @@ def _migrate_add_columns(conn) -> None:
         conn.execute(text("ALTER TABLE users ADD COLUMN consent_medical_ai BOOLEAN NOT NULL DEFAULT FALSE"))
     if "consent_at" not in user_cols:
         conn.execute(text("ALTER TABLE users ADD COLUMN consent_at TIMESTAMP"))
+
+    # Referral chain columns for consultations
+    if inspector.has_table("consultations"):
+        cons_cols = {c["name"] for c in inspector.get_columns("consultations")}
+        if "parent_consultation_id" not in cons_cols:
+            conn.execute(text(
+                "ALTER TABLE consultations ADD COLUMN parent_consultation_id INTEGER "
+                "REFERENCES consultations(id) ON DELETE SET NULL"
+            ))
+        if "referral_reason" not in cons_cols:
+            conn.execute(text("ALTER TABLE consultations ADD COLUMN referral_reason TEXT NOT NULL DEFAULT ''"))
+        if "referral_summary" not in cons_cols:
+            conn.execute(text("ALTER TABLE consultations ADD COLUMN referral_summary TEXT NOT NULL DEFAULT ''"))
 
 
 # ══════════════════════════════════════════════════════════════
@@ -1190,15 +1206,26 @@ def create_chat_consultation(
     complaints: str,
     session_id: str,
     title: str = "",
+    parent_consultation_id: int | None = None,
+    referral_reason: str = "",
+    referral_summary: str = "",
 ) -> int:
     """Create a new chat-style consultation. Returns consultation ID."""
     with engine.begin() as conn:
         result = conn.execute(
             text("""INSERT INTO consultations
-                (patient_id, specialty, complaints, response, status, title, session_id)
-                VALUES (:pid, :spec, :comp, '{}', 'active', :title, :sid)
+                (patient_id, specialty, complaints, response, status, title, session_id,
+                 parent_consultation_id, referral_reason, referral_summary)
+                VALUES (:pid, :spec, :comp, '{}', 'active', :title, :sid,
+                        :parent_id, :ref_reason, :ref_summary)
                 RETURNING id"""),
-            {"pid": patient_id, "spec": specialty, "comp": encrypt_field(complaints), "title": title, "sid": session_id},
+            {
+                "pid": patient_id, "spec": specialty,
+                "comp": encrypt_field(complaints), "title": title, "sid": session_id,
+                "parent_id": parent_consultation_id,
+                "ref_reason": referral_reason,
+                "ref_summary": encrypt_field(referral_summary) if referral_summary else "",
+            },
         )
     return result.scalar()
 
@@ -1292,6 +1319,7 @@ def get_consultation_by_id(consultation_id: int) -> dict | None:
         row = conn.execute(
             text("""SELECT c.id, c.patient_id, c.specialty, c.complaints, c.response,
                       c.date, c.status, c.title, c.session_id,
+                      c.parent_consultation_id, c.referral_reason, c.referral_summary,
                       p.first_name, p.last_name
                 FROM consultations c
                 LEFT JOIN patients p ON c.patient_id = p.id
@@ -1302,6 +1330,7 @@ def get_consultation_by_id(consultation_id: int) -> dict | None:
         return None
     entry = dict(row)
     entry["complaints"] = decrypt_field(entry.get("complaints"))
+    entry["referral_summary"] = decrypt_field(entry.get("referral_summary")) or ""
     # Convert datetime to string
     if isinstance(entry.get("date"), datetime):
         entry["date"] = entry["date"].isoformat()
@@ -1346,6 +1375,68 @@ def close_consultation(consultation_id: int) -> bool:
             {"cid": consultation_id},
         )
     return result.rowcount > 0
+
+
+def get_consultation_chain(consultation_id: int) -> list[dict]:
+    """Walk parent_consultation_id up to build the full referral chain.
+
+    Returns list ordered oldest-first (root consultation first).
+    Each entry contains: id, specialty, complaints (decrypted),
+    referral_reason, referral_summary (decrypted), date.
+    """
+    chain: list[dict] = []
+    visited: set[int] = set()
+    current_id: int | None = consultation_id
+
+    with engine.connect() as conn:
+        while current_id is not None and current_id not in visited:
+            visited.add(current_id)
+            row = conn.execute(
+                text("""SELECT id, specialty, complaints, referral_reason,
+                              referral_summary, parent_consultation_id, date
+                        FROM consultations WHERE id = :cid"""),
+                {"cid": current_id},
+            ).mappings().first()
+            if not row:
+                break
+            entry = dict(row)
+            entry["complaints"] = decrypt_field(entry.get("complaints"))
+            entry["referral_summary"] = decrypt_field(entry.get("referral_summary")) or ""
+            if isinstance(entry.get("date"), datetime):
+                entry["date"] = entry["date"].isoformat()
+            chain.append(entry)
+            current_id = entry.get("parent_consultation_id")
+
+    chain.reverse()  # oldest first
+    return chain
+
+
+def get_consultation_messages_summary(consultation_id: int, max_messages: int = 20) -> str:
+    """Get a compact text summary of all messages in a consultation for referral context.
+
+    Returns a string like:
+      Пациент: <text>
+      Врач: <text>
+      ...
+    """
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text("""SELECT role, content FROM chat_messages
+                    WHERE consultation_id = :cid
+                    ORDER BY created_at ASC, id ASC
+                    LIMIT :lim"""),
+            {"cid": consultation_id, "lim": max_messages},
+        ).mappings().all()
+
+    parts: list[str] = []
+    for r in rows:
+        content = decrypt_field(r["content"]) or ""
+        # Truncate very long messages to keep context manageable
+        if len(content) > 800:
+            content = content[:800] + "..."
+        role_label = "Пациент" if r["role"] == "user" else "Врач"
+        parts.append(f"{role_label}: {content}")
+    return "\n\n".join(parts)
 
 
 # ══════════════════════════════════════════════════════════════

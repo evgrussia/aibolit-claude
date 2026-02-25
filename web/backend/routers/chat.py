@@ -20,6 +20,8 @@ from src.utils.database import (
     get_chat_attachment,
     get_chat_messages,
     get_consultation_by_id,
+    get_consultation_chain,
+    get_consultation_messages_summary,
     get_patient_chat_consultations,
     load_patient,
     save_chat_attachment,
@@ -69,6 +71,8 @@ def _build_referral_event(ai_text: str, current_specialty: str) -> list[dict]:
 class ChatCreateRequest(BaseModel):
     specialty: str
     complaints: str
+    parent_consultation_id: int | None = None
+    referral_reason: str = ""
 
 
 # ── POST /chat/create ─────────────────────────────────────
@@ -105,6 +109,36 @@ async def create_chat(
     session_id = str(uuid.uuid4())
     safe_complaints = chat_service.sanitize_user_input(req.complaints.strip())
 
+    # Build referral context if this is a referred consultation
+    referral_context = ""
+    referral_summary_for_db = ""
+    if req.parent_consultation_id:
+        # Verify parent belongs to same patient
+        parent = get_consultation_by_id(req.parent_consultation_id)
+        if parent and parent.get("patient_id") == patient_id:
+            # Build chain from the parent consultation upward
+            chain = get_consultation_chain(req.parent_consultation_id)
+            # Get conversation from the parent consultation
+            parent_messages = get_consultation_messages_summary(req.parent_consultation_id)
+            referral_context = chat_service.build_referral_context_text(
+                chain=chain,
+                current_messages_summary=parent_messages,
+                referral_reason=req.referral_reason,
+            )
+            # Store raw dialog excerpt for future chain links (truncated to 2000 chars).
+            # Named "summary" but currently stores raw messages — acceptable for MVP;
+            # can be replaced with AI-generated summary in future iterations.
+            referral_summary_for_db = parent_messages[:2000] if parent_messages else ""
+            logger.info(
+                "[CHAT_CREATE] Referral from consultation=%d, chain_len=%d, context_len=%d",
+                req.parent_consultation_id, len(chain), len(referral_context),
+            )
+        else:
+            logger.warning(
+                "[CHAT_CREATE] Invalid parent_consultation_id=%s (not found or wrong patient)",
+                req.parent_consultation_id,
+            )
+
     # Create consultation in DB
     title = safe_complaints[:80]
     consultation_id = create_chat_consultation(
@@ -113,6 +147,9 @@ async def create_chat(
         complaints=safe_complaints,
         session_id=session_id,
         title=title,
+        parent_consultation_id=req.parent_consultation_id if referral_context else None,
+        referral_reason=req.referral_reason,
+        referral_summary=referral_summary_for_db,
     )
 
     # Save user message
@@ -121,7 +158,9 @@ async def create_chat(
     AuditLogService.log_medical(
         "chat_consultation_created",
         data={"consultation_id": consultation_id, "patient_id": patient_id,
-              "specialty": req.specialty, "session_id": session_id},
+              "specialty": req.specialty, "session_id": session_id,
+              "parent_consultation_id": req.parent_consultation_id,
+              "referral_reason": req.referral_reason},
         actor=current_user,
     )
 
@@ -176,6 +215,7 @@ async def create_chat(
         specialty_name=spec.name_ru,
         patient_context=patient_context,
         specialization=spec,
+        referral_context=referral_context,
     )
 
     async def event_stream() -> AsyncIterator[str]:
@@ -353,10 +393,22 @@ async def send_chat_message(
         p = load_patient(patient_id)
         if p:
             fallback_patient_context = p.summary()
+    # Rebuild referral context for fallback prompt (session recovery after container restart)
+    fallback_referral_context = ""
+    parent_cid = consultation.get("parent_consultation_id")
+    if parent_cid:
+        chain = get_consultation_chain(parent_cid)
+        parent_msgs = get_consultation_messages_summary(parent_cid)
+        fallback_referral_context = chat_service.build_referral_context_text(
+            chain=chain,
+            current_messages_summary=parent_msgs,
+            referral_reason=consultation.get("referral_reason", ""),
+        )
     fallback_system_prompt = chat_service.build_system_prompt(
         specialty_name=spec.name_ru if spec else consultation["specialty"],
         patient_context=fallback_patient_context,
         specialization=spec,
+        referral_context=fallback_referral_context,
     )
     # Load chat history for session recovery
     history_rows = get_chat_messages(consultation_id)
@@ -486,7 +538,7 @@ def get_chat_info(
         raise HTTPException(403, "Нет доступа к этой консультации")
 
     spec = get_specialization(consultation["specialty"])
-    return {
+    result = {
         "id": consultation["id"],
         "specialty": consultation["specialty"],
         "status": consultation.get("status", "legacy"),
@@ -494,12 +546,15 @@ def get_chat_info(
         "complaints": consultation["complaints"],
         "date": consultation["date"],
         "session_id": consultation.get("session_id"),
+        "parent_consultation_id": consultation.get("parent_consultation_id"),
+        "referral_reason": consultation.get("referral_reason", ""),
         "doctor": {
             "specialty_id": spec.id if spec else consultation["specialty"],
             "name": f"AI-{spec.name_ru}" if spec else f"AI-{consultation['specialty']}",
             "qualification": spec.description if spec else "",
         },
     }
+    return result
 
 
 # ── GET /chat/my ──────────────────────────────────────────

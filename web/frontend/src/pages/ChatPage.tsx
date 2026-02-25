@@ -187,9 +187,14 @@ export default function ChatPage() {
     setFiles(prev => prev.filter((_, i) => i !== idx));
   };
 
-  const handleReferral = useCallback(async (specialtyId: string) => {
+  const handleReferral = useCallback(async (specialtyId: string, specialtyName?: string) => {
     setNavigatingToSpec(specialtyId);
     try {
+      // Build referral reason from the specialty name for context
+      const reasonText = specialtyName
+        ? `Направлен(а) от ${doctor?.name || 'AI-врача'} к ${specialtyName}`
+        : `Направлен(а) от ${doctor?.name || 'AI-врача'}`;
+
       let newConsultationId: number | null = null;
       const handlers: ChatSSEHandler = {
         onMeta: (data) => {
@@ -197,7 +202,14 @@ export default function ChatPage() {
         },
       };
       const ac = new AbortController();
-      const promise = createChat(specialtyId, originalComplaints, handlers, ac.signal);
+      const promise = createChat(
+        specialtyId,
+        originalComplaints,
+        handlers,
+        ac.signal,
+        cId,           // parent consultation ID
+        reasonText,    // referral reason
+      );
       // Wait up to 3s for meta event with consultation_id
       const timeout = setTimeout(() => {
         if (newConsultationId) {
@@ -219,7 +231,7 @@ export default function ChatPage() {
     } finally {
       setNavigatingToSpec(null);
     }
-  }, [originalComplaints, navigate, toast]);
+  }, [originalComplaints, navigate, toast, cId, doctor]);
 
   const handleClose = async () => {
     try {
@@ -408,7 +420,7 @@ export default function ChatPage() {
               {referrals.map(ref => (
                 <button
                   key={ref.specialty_id}
-                  onClick={() => handleReferral(ref.specialty_id)}
+                  onClick={() => handleReferral(ref.specialty_id, ref.specialty_name)}
                   disabled={navigatingToSpec !== null}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-50 border border-violet-200 rounded-lg text-xs font-medium text-violet-700 hover:bg-violet-100 transition-colors disabled:opacity-50"
                 >
@@ -508,7 +520,7 @@ function ReferralCard({
   navigatingToSpec,
 }: {
   referrals: ChatReferralEvent['referrals'];
-  onNavigate: (specialtyId: string) => void;
+  onNavigate: (specialtyId: string, specialtyName?: string) => void;
   navigatingToSpec: string | null;
 }) {
   return (
@@ -524,7 +536,7 @@ function ReferralCard({
             return (
               <button
                 key={ref.specialty_id}
-                onClick={() => onNavigate(ref.specialty_id)}
+                onClick={() => onNavigate(ref.specialty_id, ref.specialty_name)}
                 disabled={navigatingToSpec !== null}
                 className="flex items-center gap-1.5 px-3 py-2 bg-white border border-violet-200 rounded-xl text-xs sm:text-sm font-medium text-violet-700 hover:bg-violet-50 hover:border-violet-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
               >
@@ -540,7 +552,7 @@ function ReferralCard({
           })}
         </div>
         <p className="text-[10px] text-violet-400 mt-2">
-          Нажмите, чтобы начать новую консультацию с этим специалистом
+          Нажмите, чтобы начать консультацию (контекст текущей беседы будет передан)
         </p>
       </div>
     </div>
