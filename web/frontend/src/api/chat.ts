@@ -42,6 +42,61 @@ export type ChatSSEHandler = {
 };
 
 /**
+ * Refresh the access token using the stored refresh token.
+ * Returns the new access token or null if refresh failed.
+ */
+async function _refreshAccessToken(): Promise<string | null> {
+  const refreshToken = localStorage.getItem('aibolit_refresh_token');
+  if (!refreshToken) return null;
+  try {
+    const res = await fetch('/api/v1/auth/refresh', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    localStorage.setItem('aibolit_token', data.token);
+    localStorage.setItem('aibolit_refresh_token', data.refresh_token);
+    return data.token;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Fetch with automatic Bearer token and 401 retry via refresh token.
+ * Raw fetch is used for SSE endpoints (axios doesn't support streaming),
+ * but it bypasses the axios auto-refresh interceptor — this helper fills that gap.
+ */
+async function _fetchWithAuth(
+  url: string,
+  init: RequestInit,
+): Promise<Response> {
+  const token = localStorage.getItem('aibolit_token');
+  const headers: Record<string, string> = {};
+  // Copy explicit headers (e.g. Content-Type for JSON requests)
+  if (init.headers) {
+    for (const [k, v] of Object.entries(init.headers as Record<string, string>)) {
+      headers[k] = v;
+    }
+  }
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  let res = await fetch(url, { ...init, headers });
+
+  if (res.status === 401) {
+    const newToken = await _refreshAccessToken();
+    if (newToken) {
+      headers['Authorization'] = `Bearer ${newToken}`;
+      res = await fetch(url, { ...init, headers });
+    }
+  }
+
+  return res;
+}
+
+/**
  * Create a new chat consultation and stream first AI response.
  * Uses fetch + ReadableStream for SSE (Axios doesn't support streaming).
  */
@@ -51,13 +106,9 @@ export async function createChat(
   handlers: ChatSSEHandler,
   signal?: AbortSignal,
 ): Promise<void> {
-  const token = localStorage.getItem('aibolit_token');
-  const res = await fetch('/api/v1/chat/create', {
+  const res = await _fetchWithAuth('/api/v1/chat/create', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ specialty, complaints }),
     signal,
   });
@@ -80,7 +131,6 @@ export async function sendMessage(
   handlers: ChatSSEHandler,
   signal?: AbortSignal,
 ): Promise<void> {
-  const token = localStorage.getItem('aibolit_token');
   const form = new FormData();
   form.append('text', text);
   if (files) {
@@ -89,11 +139,8 @@ export async function sendMessage(
     }
   }
 
-  const res = await fetch(`/api/v1/chat/${consultationId}/message`, {
+  const res = await _fetchWithAuth(`/api/v1/chat/${consultationId}/message`, {
     method: 'POST',
-    headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
     body: form,
     signal,
   });
@@ -152,6 +199,7 @@ async function _processSSE(res: Response, handlers: ChatSSEHandler): Promise<voi
 
   const decoder = new TextDecoder();
   let buffer = '';
+  let currentEvent = '';
 
   while (true) {
     const { done, value } = await reader.read();
@@ -160,8 +208,6 @@ async function _processSSE(res: Response, handlers: ChatSSEHandler): Promise<voi
     buffer += decoder.decode(value, { stream: true });
     const lines = buffer.split('\n');
     buffer = lines.pop() || '';
-
-    let currentEvent = '';
 
     for (const line of lines) {
       if (line.startsWith('event: ')) {

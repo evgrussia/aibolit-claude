@@ -55,10 +55,19 @@ export default function ChatPage() {
     scrollToBottom();
   }, [messages, streamText, scrollToBottom]);
 
-  // Load chat info + messages
+  // Load chat info + messages; reset transient state on navigation
   useEffect(() => {
     if (!cId) return;
     let cancelled = false;
+
+    // Reset state that should not persist across chat navigations
+    setReferrals([]);
+    setNavigatingToSpec(null);
+    setStreamText('');
+    setStreaming(false);
+    setEmergency(null);
+    setRedFlags(null);
+    setError('');
 
     async function load() {
       try {
